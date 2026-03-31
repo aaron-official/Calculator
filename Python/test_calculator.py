@@ -1,9 +1,59 @@
-from calculator import get_numbers
+import io
+import unittest
+from contextlib import redirect_stdout
 from unittest.mock import patch
-import pytest
 
-@patch('builtins.input', side_effect=['5', '10', 'done'])
-def test_get_numbers_valid(mock_input):
-    """Test getting valid numbers from user."""
-    result = get_numbers()
-    assert result == [5.0, 10.0], f"Expected [5.0, 10.0], got {result}"
+from calculator import add_numbers, get_numbers, main, multiply_numbers
+
+
+class CalculatorTests(unittest.TestCase):
+    @patch("builtins.input", side_effect=["5", "10", "done"])
+    def test_get_numbers_valid(self, mock_input):
+        self.assertEqual(get_numbers(), [5.0, 10.0])
+
+    @patch("builtins.input", side_effect=["abc", "4", "done"])
+    def test_get_numbers_invalid_then_valid(self, mock_input):
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            result = get_numbers()
+
+        self.assertEqual(result, [4.0])
+        self.assertIn("Invalid input. Please enter a number or 'done'.", output.getvalue())
+
+    def test_add_numbers(self):
+        self.assertEqual(add_numbers([2.0, 3.0, 5.0]), 10.0)
+
+    def test_multiply_numbers(self):
+        self.assertEqual(multiply_numbers([2.0, 3.0, 5.0]), 30.0)
+
+    @patch("builtins.input", side_effect=["done"])
+    def test_main_stops_when_no_numbers(self, mock_input):
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            main()
+
+        self.assertIn("No numbers were entered. Exiting the program.", output.getvalue())
+
+    @patch("builtins.input", side_effect=["2", "3", "done", "1"])
+    def test_main_addition_flow(self, mock_input):
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            main()
+
+        self.assertIn("The sum is: 5.0", output.getvalue())
+
+    @patch("builtins.input", side_effect=["2", "3", "4", "done", "2"])
+    def test_main_multiplication_flow(self, mock_input):
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            main()
+
+        self.assertIn("The product is: 24.0", output.getvalue())
+
+
+if __name__ == "__main__":
+    unittest.main()
