@@ -1,3 +1,11 @@
+'''
+A Simple Calculator CLI App
+'''
+
+
+
+
+
 def main():
     print("Hello from calculator!")
 
