@@ -1,0 +1,32 @@
+name: CI pipeline
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
+jobs:
+    test-and-lint:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: checkout code
+              uses: actions/checkout@v6
+            
+            - name: set up python
+              uses: actions/setup-python@v6
+              with:
+                python-version: '3.14'
+            
+            - name: install dependencies
+              run:
+                pip install -r requirements.txt
+            
+            - name: run flake8 linter
+              run:
+                flake8 calculator.py test_calculator.py --max-line-length=88 --extend-ignore=E203
+            
+            - name: run tests
+              if: success()
+              run: pytest test_calculator.py
