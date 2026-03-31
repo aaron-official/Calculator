@@ -28,11 +28,11 @@ jobs:
                   pip install .
                   pip install ruff pytest
 
-            - name: Run ruff linter
-              run: ruff check .
-
             - name: Run ruff linter fix
               run: ruff check --fix .
+
+            - name: Run ruff linter
+              run: ruff check .
 
             - name: Run tests
               run: pytest test_calculator.py
