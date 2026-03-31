@@ -1,8 +1,7 @@
 [project]
 name = "calculator"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
+description = "Simple Calculator project"
 requires-python = ">=3.12"
 dependencies = [
     "yamlfix>=1.19.1",
@@ -14,3 +13,7 @@ dev = [
     "pytest>=9.0.2",
     "ruff>=0.15.8",
 ]
+
+[tool.setuptools]
+py-modules = ["calculator"]
+
