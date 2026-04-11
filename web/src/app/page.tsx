@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Play, RotateCcw, Coins, ShieldCheck, Zap, Activity, Info, Globe, Server, Loader2, HelpCircle, Target, TrendingUp, AlertTriangle } from "lucide-react";
+import { Trophy, Play, RotateCcw, Coins, ShieldCheck, Zap, Activity, Info, Globe, Server, Loader2 } from "lucide-react";
 
 // Types for the runners
 type Runner = "python" | "rust";
@@ -454,48 +454,32 @@ export default function RaceTrack() {
         {/* How to Play Section */}
         <section className="bg-slate-900/30 rounded-3xl border border-slate-800 p-8 space-y-8">
             <div className="flex items-center gap-3">
-                <HelpCircle className="w-6 h-6 text-blue-400" />
                 <h2 className="text-2xl font-black uppercase italic tracking-tight">How to Play & Rules</h2>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="space-y-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
-                        <Target className="w-5 h-5 text-blue-400" />
-                    </div>
                     <h3 className="font-bold text-sm uppercase tracking-wider">1. Pick a Side</h3>
                     <p className="text-xs text-slate-500 leading-relaxed">Choose your champion: the stable Python Snake or the blazing fast Rust Crab.</p>
                 </div>
 
                 <div className="space-y-3">
-                    <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center border border-orange-500/30">
-                        <TrendingUp className="w-5 h-5 text-orange-400" />
-                    </div>
                     <h3 className="font-bold text-sm uppercase tracking-wider">2. Set the Odds</h3>
                     <p className="text-xs text-slate-500 leading-relaxed">Adjust workloads. If you give a runner more work, your payout multiplier increases!</p>
                 </div>
 
                 <div className="space-y-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
-                        <Coins className="w-5 h-5 text-emerald-400" />
-                    </div>
                     <h3 className="font-bold text-sm uppercase tracking-wider">3. Risk & Reward</h3>
                     <p className="text-xs text-slate-500 leading-relaxed">Bet $100 or $500. Underdogs pay out significantly more if they pull off an upset.</p>
                 </div>
 
                 <div className="space-y-3">
-                    <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center border border-red-500/30">
-                        <AlertTriangle className="w-5 h-5 text-red-400" />
-                    </div>
                     <h3 className="font-bold text-sm uppercase tracking-wider">4. The House</h3>
                     <p className="text-xs text-slate-500 leading-relaxed">Beware! The House always wins. Expect rigged delays when you bet too high.</p>
                 </div>
             </div>
 
             <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-800/50 flex items-center gap-4">
-                <div className="p-2 bg-blue-500/10 rounded-lg">
-                    <Activity className="w-4 h-4 text-blue-400" />
-                </div>
                 <p className="text-[10px] font-medium text-slate-500 uppercase tracking-widest leading-relaxed">
                     Technical Note: Browser mode uses <span className="text-blue-400">Pyodide</span> for Python and <span className="text-orange-400">WebAssembly</span> for Rust logic. Server mode executes native binaries.
                 </p>
