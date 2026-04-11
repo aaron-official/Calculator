@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Play, RotateCcw, Coins, ShieldCheck, Zap, Activity, Info, Globe, Server } from "lucide-react";
+import { Trophy, Play, RotateCcw, Coins, ShieldCheck, Zap, Activity, Info, Globe, Server, Loader2 } from "lucide-react";
 
 // Types for the runners
 type Runner = "python" | "rust";
@@ -41,6 +41,7 @@ export default function RaceTrack() {
   const [operation, setOperation] = useState("1"); 
   const [engineMode, setEngineMode] = useState<"server" | "browser">("browser");
   const [isEngineReady, setIsEngineReady] = useState(false);
+  const [engineStatus, setEngineStatus] = useState("Initializing...");
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const rustWasmRef = useRef<any>(null);
@@ -53,9 +54,15 @@ export default function RaceTrack() {
 
   // --- ENGINE INITIALIZATION ---
   useEffect(() => {
+    // Detect environment: If on github.io, default to browser mode
+    if (typeof window !== "undefined" && window.location.hostname.includes("github.io")) {
+        setEngineMode("browser");
+    }
+
     if (engineMode === "browser") {
       const initEngines = async () => {
         try {
+          setEngineStatus("Loading Python (Pyodide)...");
           // 1. Load Pyodide
           if (!window.pyodide) {
             const script = document.createElement("script");
@@ -63,34 +70,43 @@ export default function RaceTrack() {
             script.onload = async () => {
               try {
                 window.pyodide = await window.loadPyodide();
-                setIsEngineReady(true);
+                setEngineStatus("Loading Rust (Wasm)...");
+                await loadWasm();
               } catch (e) {
                 console.error("Pyodide load fail", e);
-                setIsEngineReady(true); // Still ready to "race" even if it's a mock
+                setEngineStatus("Python failed, using simulation mode...");
+                setIsEngineReady(true); 
               }
             };
             document.head.appendChild(script);
           } else {
-            setIsEngineReady(true);
-          }
-
-          // 2. Load Rust Wasm
-          try {
-            // @ts-ignore
-            const wasm = await import("../wasm/calculator.js");
-            await wasm.default();
-            rustWasmRef.current = wasm;
-          } catch (e) {
-            console.warn("Wasm not built yet or failed to load", e);
+            await loadWasm();
           }
         } catch (err) {
           console.error("Failed to init engines", err);
           setIsEngineReady(true);
         }
       };
+
+      const loadWasm = async () => {
+        try {
+            // @ts-ignore
+            const wasm = await import("../wasm/calculator.js");
+            await wasm.default();
+            rustWasmRef.current = wasm;
+            setEngineStatus("Ready to Race");
+            setIsEngineReady(true);
+          } catch (e) {
+            console.warn("Wasm failed to load, using simulation mode", e);
+            setEngineStatus("Ready (Simulation Mode)");
+            setIsEngineReady(true);
+          }
+      };
+
       initEngines();
     } else {
       setIsEngineReady(true);
+      setEngineStatus("Server Mode Active");
     }
   }, [engineMode]);
 
@@ -104,6 +120,9 @@ export default function RaceTrack() {
   const startRace = async () => {
     if (isRacing || !betOn || balance < betAmount) return;
 
+    // IMPORTANT: Update ref immediately so loops don't exit
+    isRacingRef.current = true;
+    
     setPyProgress(0);
     setRsProgress(0);
     setIsRacing(true);
@@ -133,6 +152,7 @@ export default function RaceTrack() {
 
     es.onerror = () => {
         setIsRacing(false);
+        isRacingRef.current = false;
         es.close();
     };
   };
@@ -170,6 +190,7 @@ export default function RaceTrack() {
     setWinnerResult((prev) => {
         if (prev) return prev; 
         setIsRacing(false);
+        isRacingRef.current = false;
         if (es) es.close();
 
         const isWin = winner === betOn;
@@ -184,6 +205,7 @@ export default function RaceTrack() {
 
   const resetRace = () => {
     setIsRacing(false);
+    isRacingRef.current = false;
     setPyProgress(0);
     setRsProgress(0);
     setWinnerResult(null);
@@ -202,7 +224,7 @@ export default function RaceTrack() {
             <div className="flex items-center gap-4 mt-2">
                 <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-widest">
                     <Activity className="w-3 h-3 text-blue-500 animate-pulse" />
-                    Racing Engines
+                    {engineStatus}
                 </div>
                 <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
                     <button 
@@ -215,7 +237,7 @@ export default function RaceTrack() {
                         onClick={() => setEngineMode("server")}
                         className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-black transition-all ${engineMode === "server" ? "bg-purple-600 text-white" : "text-slate-500 hover:text-slate-300"}`}
                     >
-                        <Server className="w-3 h-3" /> DOCKER/API
+                        <Server className="w-3 h-3" /> SERVER
                     </button>
                 </div>
             </div>
@@ -351,8 +373,14 @@ export default function RaceTrack() {
               }`}
             >
               <div className="relative z-10 flex items-center gap-3">
-                {isRacing ? <RotateCcw className="w-8 h-8" /> : <Play className="w-8 h-8 fill-current translate-x-1" />}
-                <span className="tracking-tighter uppercase">{isRacing ? "Abort" : "Race!"}</span>
+                {!isEngineReady ? (
+                    <Loader2 className="w-8 h-8 animate-spin" />
+                ) : isRacing ? (
+                    <RotateCcw className="w-8 h-8" />
+                ) : (
+                    <Play className="w-8 h-8 fill-current translate-x-1" />
+                )}
+                <span className="tracking-tighter uppercase">{!isEngineReady ? "Loading..." : isRacing ? "Abort" : "Race!"}</span>
               </div>
             </button>
           </div>
