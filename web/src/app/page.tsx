@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Play, RotateCcw, Zap, Activity, Globe, Server, Loader2, Cpu, HelpCircle, Target, TrendingUp } from "lucide-react";
+import { Trophy, Play, RotateCcw, Zap, Activity, Globe, Server, Loader2, Cpu, HelpCircle } from "lucide-react";
 
 // Types for the runners
 type Runner = "python" | "rust";
@@ -21,8 +21,8 @@ export default function RaceTrack() {
   const [rsProgress, setRsProgress] = useState(0);
   const [isRacing, setIsRacing] = useState(false);
   const [winner, setWinner] = useState<Runner | null>(null);
-  const [pyWorkload, setPyWorkload] = useState(5000); 
-  const [rsWorkload, setRsWorkload] = useState(500000); 
+  const [pyWorkload, setPyWorkload] = useState(10000); 
+  const [rsWorkload, setRsWorkload] = useState(1000000); 
   const [operation, setOperation] = useState("1"); 
   const [engineMode, setEngineMode] = useState<"server" | "browser">("browser");
   const [isEngineReady, setIsEngineReady] = useState(false);
@@ -47,17 +47,17 @@ export default function RaceTrack() {
     if (engineMode === "browser") {
       const initEngines = async () => {
         try {
-          setEngineStatus("Loading Python (Pyodide)...");
+          setEngineStatus("Loading Python...");
           if (!window.pyodide) {
             const script = document.createElement("script");
             script.src = "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js";
             script.onload = async () => {
               try {
                 window.pyodide = await window.loadPyodide();
-                setEngineStatus("Loading Rust (Wasm)...");
+                setEngineStatus("Loading Rust...");
                 await loadWasm();
               } catch (e) {
-                setEngineStatus("Python failed.");
+                setEngineStatus("Ready (Simulation)");
                 setIsEngineReady(true); 
               }
             };
@@ -79,7 +79,7 @@ export default function RaceTrack() {
             setEngineStatus("Engines Ready");
             setIsEngineReady(true);
           } catch (e) {
-            setEngineStatus("Simulation Mode Ready");
+            setEngineStatus("Ready (Simulation)");
             setIsEngineReady(true);
           }
       };
@@ -142,12 +142,18 @@ export default function RaceTrack() {
             const workPerBatch = pyWorkload / batches;
             for (let i = 1; i <= batches; i++) {
                 if (!isRacingRef.current) break;
-                // Actual heavy math loop in Python
-                await window.pyodide.runPythonAsync(`
-result = 0.0
-for _ in range(${Math.floor(workPerBatch)}):
-    result += 1.1
-                `);
+                
+                // Construct logic based on operation
+                let pyLogic = "";
+                if (operation === "5") {
+                    pyLogic = "result = 1.1\nfor _ in range(" + Math.floor(workPerBatch) + "): result = result ** 1.0001";
+                } else if (operation === "6") {
+                    pyLogic = "import math\nresult = 0.0\nfor _ in range(" + Math.floor(workPerBatch) + "): result += math.sqrt(1.1)";
+                } else {
+                    pyLogic = "result = 0.0\nfor _ in range(" + Math.floor(workPerBatch) + "): result += 1.1";
+                }
+
+                await window.pyodide.runPythonAsync(pyLogic);
                 setPyProgress(i);
             }
         }
@@ -163,11 +169,14 @@ for _ in range(${Math.floor(workPerBatch)}):
             const nums = new Float64Array(Math.floor(workPerBatch)).fill(1.1);
             for (let i = 1; i <= batches; i++) {
                 if (!isRacingRef.current) break;
-                // Actual Rust execution
+                
                 if (operation === "1") rustWasmRef.current.add_numbers(nums);
                 else if (operation === "2") rustWasmRef.current.subtract_numbers(nums);
                 else if (operation === "3") rustWasmRef.current.multiply_numbers(nums);
                 else if (operation === "4") rustWasmRef.current.divide_numbers(nums);
+                else if (operation === "5") rustWasmRef.current.power_numbers(nums);
+                else if (operation === "6") rustWasmRef.current.root_numbers(nums);
+                
                 setRsProgress(i);
             }
         }
@@ -183,15 +192,13 @@ for _ in range(${Math.floor(workPerBatch)}):
     setFinishTimes(prev => {
         if (prev[runner]) return prev;
         const next = { ...prev, [runner]: time };
-        
-        // Winning detection: if I am the first to finish the workload
-        setWinner(w => w || runner);
-        
+        // Set winner if none exists
+        if (!winner) setWinner(w => w || runner);
         return next;
     });
   };
 
-  // Close server connection if both finished
+  // Close server connection and finalize when BOTH finish
   useEffect(() => {
     if (pyProgress >= 100 && rsProgress >= 100 && isRacing) {
         setIsRacing(false);
@@ -209,6 +216,9 @@ for _ in range(${Math.floor(workPerBatch)}):
     setFinishTimes({});
     if (eventSourceRef.current) eventSourceRef.current.close();
   };
+
+  // Check if both finished to show results
+  const bothFinished = finishTimes.python !== undefined && finishTimes.rust !== undefined;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans selection:bg-blue-500/30">
@@ -265,7 +275,7 @@ for _ in range(${Math.floor(workPerBatch)}):
                   <input
                     type="range"
                     min="1000"
-                    max="100000"
+                    max="500000"
                     step="1000"
                     value={pyWorkload}
                     onChange={(e) => setPyWorkload(parseInt(e.target.value))}
@@ -285,7 +295,7 @@ for _ in range(${Math.floor(workPerBatch)}):
                   <input
                     type="range"
                     min="10000"
-                    max="10000000"
+                    max="50000000"
                     step="10000"
                     value={rsWorkload}
                     onChange={(e) => setRsWorkload(parseInt(e.target.value))}
@@ -309,10 +319,12 @@ for _ in range(${Math.floor(workPerBatch)}):
                         <option value="2">Subtraction (-)</option>
                         <option value="3">Multiplication (*)</option>
                         <option value="4">Division (/)</option>
+                        <option value="5">Exponents (**)</option>
+                        <option value="6">Square Roots (sqrt)</option>
                     </select>
                   </div>
                   <div className="flex-1 text-[10px] text-slate-500 uppercase font-bold tracking-widest leading-relaxed">
-                    Higher workloads provide more stable benchmarks by minimizing overhead noise.
+                    Compare execution efficiency across different mathematical complexities.
                   </div>
                 </div>
              </div>
@@ -429,34 +441,31 @@ for _ in range(${Math.floor(workPerBatch)}):
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 <div className="space-y-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
-                        <Target className="w-5 h-5 text-blue-400" />
-                    </div>
-                    <h3 className="font-bold text-sm uppercase tracking-wider text-blue-400">1. Raw Execution</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed font-medium">Artificial delays have been removed. The runners now process their entire workload as fast as the hardware allows.</p>
+                    <h3 className="font-bold text-sm uppercase tracking-wider text-blue-400">1. Set Workloads</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed font-medium">Assign specific operation counts. Notice that Rust can handle millions while Python typically stays in the thousands for equal time.</p>
                 </div>
 
                 <div className="space-y-3">
-                    <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center border border-orange-500/30">
-                        <TrendingUp className="w-5 h-5 text-orange-400" />
-                    </div>
-                    <h3 className="font-bold text-sm uppercase tracking-wider text-orange-400">2. Engine Timing</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed font-medium">Results are calculated internally by the engines to avoid network/rendering latency noise.</p>
+                    <h3 className="font-bold text-sm uppercase tracking-wider text-orange-400">2. Execute Loop</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed font-medium">The race represents real arithmetic processing. The icons move only as fast as the underlying engine completes its batches.</p>
                 </div>
 
                 <div className="space-y-3">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
-                        <Cpu className="w-5 h-5 text-indigo-400" />
-                    </div>
-                    <h3 className="font-bold text-sm uppercase tracking-wider text-indigo-400">3. Scale Factor</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed font-medium">Rust often outperforms Python by several orders of magnitude due to native machine code compilation vs interpretation.</p>
+                    <h3 className="font-bold text-sm uppercase tracking-wider text-indigo-400">3. Raw Results</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed font-medium">The final timestamps are calculated using high-resolution performance timers, showing the true delta between interpreted and native code.</p>
                 </div>
+            </div>
+
+            <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-800/50 flex items-center gap-4">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
+                    Browser mode uses <span className="text-blue-400">Pyodide (WebAssembly Python)</span> and <span className="text-orange-400">Native WebAssembly (Rust)</span>.
+                </p>
             </div>
         </section>
 
         {/* Results Modal */}
         <AnimatePresence>
-          {winner && (
+          {bothFinished && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -491,13 +500,13 @@ for _ in range(${Math.floor(workPerBatch)}):
                     <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
                         <p className="text-[10px] uppercase font-black text-slate-500 mb-1 tracking-tighter">Python (Interpreted)</p>
                         <p className="text-xl font-mono font-bold text-blue-400 italic">
-                            {finishTimes.python ? `${finishTimes.python.toFixed(6)}s` : "Waiting..."}
+                            {finishTimes.python ? `${finishTimes.python.toFixed(6)}s` : "Error"}
                         </p>
                     </div>
                     <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
                         <p className="text-[10px] uppercase font-black text-slate-500 mb-1 tracking-tighter">Rust (Native)</p>
                         <p className="text-xl font-mono font-bold text-orange-400 italic">
-                            {finishTimes.rust ? `${finishTimes.rust.toFixed(6)}s` : "Waiting..."}
+                            {finishTimes.rust ? `${finishTimes.rust.toFixed(6)}s` : "Error"}
                         </p>
                     </div>
                 </div>
@@ -506,7 +515,7 @@ for _ in range(${Math.floor(workPerBatch)}):
                   onClick={resetRace}
                   className="w-full py-5 bg-slate-100 text-slate-950 rounded-2xl font-black text-lg hover:bg-white hover:scale-[1.02] transition-all shadow-xl active:scale-95 uppercase"
                 >
-                  Clear Results
+                  Reset Arena
                 </button>
               </motion.div>
             </motion.div>
