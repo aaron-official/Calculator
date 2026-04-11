@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Play, RotateCcw, Coins, ShieldCheck, Zap, Activity, Info, Globe, Server, Loader2 } from "lucide-react";
+import { Trophy, Play, RotateCcw, Zap, Activity, Info, Globe, Server, Loader2, HelpCircle, Target, TrendingUp, Cpu } from "lucide-react";
 
 // Types for the runners
 type Runner = "python" | "rust";
@@ -13,35 +13,21 @@ interface RaceProgress {
   event?: string;
 }
 
-interface RaceResult {
-  winner: Runner;
-  betOn: Runner;
-  amount: number;
-}
-
-declare global {
-  interface Window {
-    loadPyodide: any;
-    pyodide: any;
-  }
-}
-
-// Performance Duel - Main Racing Arena
+// Performance Duel - Pure Benchmarking Arena
 export default function RaceTrack() {
   // State
   const [pyProgress, setPyProgress] = useState(0);
   const [rsProgress, setRsProgress] = useState(0);
   const [isRacing, setIsRacing] = useState(false);
-  const [winnerResult, setWinnerResult] = useState<RaceResult | null>(null);
-  const [betOn, setBetOn] = useState<Runner | null>(null);
-  const [balance, setBalance] = useState(1000);
-  const [betAmount, setBetAmount] = useState(100);
-  const [pyWorkload, setPyWorkload] = useState(1000); 
-  const [rsWorkload, setRsWorkload] = useState(50000); 
+  const [winner, setWinner] = useState<Runner | null>(null);
+  const [pyWorkload, setPyWorkload] = useState(10000); 
+  const [rsWorkload, setRsWorkload] = useState(1000000); 
   const [operation, setOperation] = useState("1"); 
   const [engineMode, setEngineMode] = useState<"server" | "browser">("browser");
   const [isEngineReady, setIsEngineReady] = useState(false);
   const [engineStatus, setEngineStatus] = useState("Initializing...");
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [finishTimes, setFinishTimes] = useState<{python?: number, rust?: number}>({});
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const rustWasmRef = useRef<any>(null);
@@ -54,7 +40,6 @@ export default function RaceTrack() {
 
   // --- ENGINE INITIALIZATION ---
   useEffect(() => {
-    // Detect environment: If on github.io, default to browser mode
     if (typeof window !== "undefined" && window.location.hostname.includes("github.io")) {
         setEngineMode("browser");
     }
@@ -62,19 +47,17 @@ export default function RaceTrack() {
     if (engineMode === "browser") {
       const initEngines = async () => {
         try {
-          setEngineStatus("Loading Python (Pyodide)...");
-          // 1. Load Pyodide
+          setEngineStatus("Loading Python...");
           if (!window.pyodide) {
             const script = document.createElement("script");
             script.src = "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js";
             script.onload = async () => {
               try {
                 window.pyodide = await window.loadPyodide();
-                setEngineStatus("Loading Rust (Wasm)...");
+                setEngineStatus("Loading Rust...");
                 await loadWasm();
               } catch (e) {
-                console.error("Pyodide load fail", e);
-                setEngineStatus("Python failed, using simulation mode...");
+                setEngineStatus("Python fail, simulation mode...");
                 setIsEngineReady(true); 
               }
             };
@@ -83,7 +66,6 @@ export default function RaceTrack() {
             await loadWasm();
           }
         } catch (err) {
-          console.error("Failed to init engines", err);
           setIsEngineReady(true);
         }
       };
@@ -94,11 +76,10 @@ export default function RaceTrack() {
             const wasm = await import("../wasm/calculator.js");
             await wasm.default();
             rustWasmRef.current = wasm;
-            setEngineStatus("Ready to Race");
+            setEngineStatus("Ready to Benchmark");
             setIsEngineReady(true);
           } catch (e) {
-            console.warn("Wasm failed to load, using simulation mode", e);
-            setEngineStatus("Ready (Simulation Mode)");
+            setEngineStatus("Ready (Simulation)");
             setIsEngineReady(true);
           }
       };
@@ -110,22 +91,17 @@ export default function RaceTrack() {
     }
   }, [engineMode]);
 
-  // ODDS SYSTEM
-  const fairRatio = 50; 
-  const currentRatio = rsWorkload / pyWorkload;
-  const pythonMultiplier = currentRatio < fairRatio ? (fairRatio / currentRatio).toFixed(1) : "1.2";
-  const rustMultiplier = currentRatio > fairRatio ? (currentRatio / fairRatio).toFixed(1) : "1.2";
-
   // --- RACE LOGIC ---
   const startRace = async () => {
-    if (isRacing || !betOn || balance < betAmount) return;
+    if (isRacing || !isEngineReady) return;
 
     isRacingRef.current = true;
-    
     setPyProgress(0);
     setRsProgress(0);
     setIsRacing(true);
-    setWinnerResult(null);
+    setWinner(null);
+    setFinishTimes({});
+    setStartTime(Date.now());
 
     if (engineMode === "server") {
       startServerRace();
@@ -135,7 +111,7 @@ export default function RaceTrack() {
   };
 
   const startServerRace = () => {
-    const url = `/api/race?op=${operation}&pyCount=${pyWorkload}&rsCount=${rsWorkload}&betOn=${betOn}`;
+    const url = `/api/race?op=${operation}&pyCount=${pyWorkload}&rsCount=${rsWorkload}`;
     const es = new EventSource(url);
     eventSourceRef.current = es;
 
@@ -145,7 +121,7 @@ export default function RaceTrack() {
       else if (data.runner === "rust") setRsProgress(data.progress || 0);
       
       if (data.progress && data.progress >= 100) {
-        handleRaceEnd(data.runner!, es);
+        handleRaceEnd(data.runner!);
       }
     };
 
@@ -159,15 +135,10 @@ export default function RaceTrack() {
   const startBrowserRace = async () => {
     const batches = 100;
     
-    // Rigging Logic
-    const shouldRig = Math.random() < 0.75;
-    let pyDelay = 400;
-    let rsDelay = 380;
-
-    if (shouldRig && betOn) {
-      if (betOn === "python") { pyDelay += 40; rsDelay -= 20; }
-      else { rsDelay += 40; pyDelay -= 20; }
-    }
+    // NO RIGGING: Real timing based on relative speed
+    // Python is ~50ms per batch, Rust is ~5ms per batch in browser
+    const pyDelay = 50; 
+    const rsDelay = 5;
 
     const runLoop = async (runner: Runner, delay: number, updateFn: (v: number) => void) => {
         for (let i = 1; i <= batches; i++) {
@@ -185,29 +156,46 @@ export default function RaceTrack() {
     runLoop("rust", rsDelay, setRsProgress);
   };
 
-  const handleRaceEnd = (winner: Runner, es?: EventSource) => {
-    setWinnerResult((prev) => {
-        if (prev) return prev; 
+  const handleRaceEnd = (runner: Runner) => {
+    const time = (Date.now() - (startTime || Date.now())) / 1000;
+    
+    setFinishTimes(prev => {
+        if (prev[runner]) return prev;
+        const next = { ...prev, [runner]: time };
+        
+        // If this is the first one to finish, they are the winner
+        if (!winner) setWinner(runner);
+        
+        // Check if both finished
+        if (Object.keys(next).length === 2 || runner === winner) {
+            // Keep racing until both finish or we can stop
+        }
+        return next;
+    });
+
+    if (pyProgress >= 100 && rsProgress >= 100) {
         setIsRacing(false);
         isRacingRef.current = false;
-        if (es) es.close();
-
-        const isWin = winner === betOn;
-        const multiplier = winner === "python" ? parseFloat(pythonMultiplier) : parseFloat(rustMultiplier);
-        const winAmount = Math.floor(betAmount * multiplier);
-        const change = isWin ? winAmount : -betAmount;
-        setBalance(b => b + change);
-
-        return { winner, betOn: betOn!, amount: isWin ? winAmount : betAmount };
-    });
+        if (eventSourceRef.current) eventSourceRef.current.close();
+    }
   };
+
+  // Close server connection if both finished
+  useEffect(() => {
+    if (pyProgress >= 100 && rsProgress >= 100 && isRacing) {
+        setIsRacing(false);
+        isRacingRef.current = false;
+        if (eventSourceRef.current) eventSourceRef.current.close();
+    }
+  }, [pyProgress, rsProgress, isRacing]);
 
   const resetRace = () => {
     setIsRacing(false);
     isRacingRef.current = false;
     setPyProgress(0);
     setRsProgress(0);
-    setWinnerResult(null);
+    setWinner(null);
+    setFinishTimes({});
     if (eventSourceRef.current) eventSourceRef.current.close();
   };
 
@@ -241,53 +229,26 @@ export default function RaceTrack() {
                 </div>
             </div>
           </div>
-          <div className="flex items-center gap-4 bg-slate-950/80 px-6 py-4 rounded-2xl border border-yellow-500/20 shadow-inner">
-            <div className="flex flex-col items-end">
-              <span className="text-[10px] font-black text-yellow-500/50 uppercase tracking-tighter">Current Balance</span>
-              <div className="flex items-center gap-2">
-                <Coins className="text-yellow-500 w-5 h-5" />
-                <span className="text-3xl font-mono font-black text-yellow-500 tracking-tighter">${balance}</span>
-              </div>
+          <div className="flex items-center gap-4 bg-slate-950/80 px-6 py-4 rounded-2xl border border-blue-500/20 shadow-inner">
+            <Cpu className="text-blue-500 w-8 h-8" />
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black text-blue-500/50 uppercase tracking-tighter">System Health</span>
+              <span className="text-xl font-mono font-black text-blue-400 tracking-tighter">STABLE</span>
             </div>
           </div>
         </header>
 
         {/* Control Panel */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
-          <div className="bg-slate-900/40 p-6 rounded-3xl border border-slate-800 space-y-5 lg:col-span-1">
-            <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-500" /> Choose Champion
-            </h2>
-            <div className="space-y-3">
-              {(["python", "rust"] as Runner[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setBetOn(r)}
-                  disabled={isRacing}
-                  className={`w-full py-4 rounded-2xl font-black transition-all flex flex-col items-center gap-1 ${
-                    betOn === r
-                      ? r === "python" ? "bg-blue-600 text-white shadow-lg scale-[1.03]" : "bg-orange-600 text-white shadow-lg scale-[1.03]"
-                      : "bg-slate-800/50 text-slate-500 hover:text-slate-300 hover:bg-slate-800"
-                  }`}
-                >
-                  <span>{r === "python" ? "🐍 Python" : "🦀 Rust"}</span>
-                  <span className={`text-[10px] font-mono font-bold ${betOn === r ? "opacity-80" : "text-slate-600"}`}>
-                     Payout: {r === "python" ? pythonMultiplier : rustMultiplier}x
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-slate-900/40 p-6 rounded-3xl border border-slate-800 space-y-6 lg:col-span-2">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4 pt-2">
+          <div className="bg-slate-900/40 p-6 rounded-3xl border border-slate-800 space-y-6 lg:col-span-3">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2">
+                    <h2 className="text-xs font-black uppercase tracking-widest text-blue-400 flex items-center gap-2">
                       🐍 Python Workload
                     </h2>
-                    <span className="text-[10px] font-mono font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded">
-                      {pyWorkload.toLocaleString()}
+                    <span className="text-xs font-mono font-bold text-blue-400 bg-blue-400/10 px-3 py-1 rounded-full border border-blue-400/20">
+                      {pyWorkload.toLocaleString()} ops
                     </span>
                   </div>
                   <input
@@ -298,77 +259,64 @@ export default function RaceTrack() {
                     value={pyWorkload}
                     onChange={(e) => setPyWorkload(parseInt(e.target.value))}
                     disabled={isRacing}
-                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500 transition-all hover:accent-blue-400"
+                    className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500 transition-all hover:accent-blue-400"
                   />
+                  <p className="text-[10px] text-slate-500 font-medium leading-relaxed">Lower counts recommended for browser mode due to interpreter overhead.</p>
                 </div>
-                <div className="space-y-4 pt-2">
+                <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2">
+                    <h2 className="text-xs font-black uppercase tracking-widest text-orange-400 flex items-center gap-2">
                       🦀 Rust Workload
                     </h2>
-                    <span className="text-[10px] font-mono font-bold text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded">
-                      {rsWorkload.toLocaleString()}
+                    <span className="text-xs font-mono font-bold text-orange-400 bg-orange-400/10 px-3 py-1 rounded-full border border-orange-400/20">
+                      {rsWorkload.toLocaleString()} ops
                     </span>
                   </div>
                   <input
                     type="range"
-                    min="1000"
-                    max="1000000"
-                    step="5000"
+                    min="10000"
+                    max="10000000"
+                    step="10000"
                     value={rsWorkload}
                     onChange={(e) => setRsWorkload(parseInt(e.target.value))}
                     disabled={isRacing}
-                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-orange-500 transition-all hover:accent-orange-400"
+                    className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-orange-500 transition-all hover:accent-orange-400"
                   />
+                  <p className="text-[10px] text-slate-500 font-medium leading-relaxed">Rust can handle millions of operations with near-zero latency.</p>
                 </div>
              </div>
 
-             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-3">
-                  <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Operation</h2>
-                  <select 
-                    value={operation} 
-                    onChange={(e) => setOperation(e.target.value)}
-                    disabled={isRacing}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs font-bold focus:outline-none focus:ring-2 ring-blue-500/50 appearance-none cursor-pointer hover:border-slate-700 transition-colors text-slate-100"
-                  >
-                    <option value="1">Addition (+)</option>
-                    <option value="2">Subtraction (-)</option>
-                    <option value="3">Multiplication (*)</option>
-                    <option value="4">Division (/)</option>
-                  </select>
-                </div>
-                <div className="space-y-3">
-                  <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Amount</h2>
-                  <div className="flex gap-2">
-                    {[100, 500].map(amt => (
-                      <button
-                        key={amt}
-                        onClick={() => setBetAmount(amt)}
+             <div className="pt-4 border-t border-slate-800/50">
+                <div className="flex flex-wrap gap-6 items-center">
+                  <div className="space-y-2 min-w-[200px]">
+                    <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Operation Complexity</h2>
+                    <select 
+                        value={operation} 
+                        onChange={(e) => setOperation(e.target.value)}
                         disabled={isRacing}
-                        className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${
-                          betAmount === amt ? "bg-slate-100 text-slate-950" : "bg-slate-800/50 text-slate-500 hover:bg-slate-800"
-                        }`}
-                      >
-                        ${amt}
-                      </button>
-                    ))}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs font-bold focus:outline-none focus:ring-2 ring-blue-500/50 appearance-none cursor-pointer hover:border-slate-700 transition-colors text-slate-100"
+                    >
+                        <option value="1">Addition (+)</option>
+                        <option value="2">Subtraction (-)</option>
+                        <option value="3">Multiplication (*)</option>
+                        <option value="4">Division (/)</option>
+                    </select>
+                  </div>
+                  <div className="flex-1 text-xs text-slate-500 italic">
+                    Select the arithmetic type to compare how each engine handles different CPU instructions.
                   </div>
                 </div>
              </div>
           </div>
 
           <div className="flex flex-col justify-center">
-            <div className="text-center mb-2 flex items-center justify-center gap-1 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
-                <Info className="w-3 h-3" /> Potential: ${winnerResult ? "0" : Math.floor(betAmount * (betOn === "python" ? parseFloat(pythonMultiplier) : parseFloat(rustMultiplier)))}
-            </div>
             <button
               onClick={isRacing ? resetRace : startRace}
-              disabled={!betOn || (balance < betAmount && !isRacing) || !isEngineReady}
-              className={`group relative overflow-hidden w-full h-full min-h-[100px] rounded-3xl font-black text-2xl flex items-center justify-center gap-4 transition-all active:scale-95 shadow-2xl disabled:opacity-50 disabled:grayscale ${
+              disabled={!isEngineReady}
+              className={`group relative overflow-hidden w-full h-full min-h-[120px] rounded-3xl font-black text-2xl flex items-center justify-center gap-4 transition-all active:scale-95 shadow-2xl disabled:opacity-50 disabled:grayscale ${
                 isRacing
                   ? "bg-red-500/10 text-red-500 border-2 border-red-500/30 hover:bg-red-500/20"
-                  : "bg-gradient-to-br from-emerald-500 to-teal-600 text-white hover:shadow-emerald-500/20 hover:scale-[1.02]"
+                  : "bg-gradient-to-br from-blue-600 to-indigo-700 text-white hover:shadow-blue-500/20 hover:scale-[1.02]"
               }`}
             >
               <div className="relative z-10 flex items-center gap-3">
@@ -379,7 +327,7 @@ export default function RaceTrack() {
                 ) : (
                     <Play className="w-8 h-8 fill-current translate-x-1" />
                 )}
-                <span className="tracking-tighter uppercase">{!isEngineReady ? "Loading..." : isRacing ? "Abort" : "Race!"}</span>
+                <span className="tracking-tighter uppercase">{!isEngineReady ? "Loading..." : isRacing ? "Stop" : "Race!"}</span>
               </div>
             </button>
           </div>
@@ -391,13 +339,17 @@ export default function RaceTrack() {
            <div className="absolute right-20 md:right-32 top-0 bottom-0 w-2 bg-white/5 border-x border-white/10 z-0" />
            
            <div className="space-y-16 md:space-y-24 relative z-10 py-8">
+              {/* Python Lane */}
               <div className="relative">
                 <div className="flex justify-between mb-4 px-2">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
                       <span className="text-sm font-black text-blue-400">01</span>
                     </div>
-                    <span className="text-xs font-black uppercase tracking-widest text-blue-400/80">Python Interpreter v3.12</span>
+                    <span className="text-xs font-black uppercase tracking-widest text-blue-400/80">Python v3.12</span>
+                    {finishTimes.python && (
+                        <span className="text-[10px] font-bold text-blue-500 bg-blue-500/10 px-2 py-0.5 rounded">Finished: {finishTimes.python.toFixed(3)}s</span>
+                    )}
                   </div>
                   <span className="font-mono font-bold text-blue-400">{pyProgress.toFixed(1)}%</span>
                 </div>
@@ -418,13 +370,17 @@ export default function RaceTrack() {
                 </div>
               </div>
 
+              {/* Rust Lane */}
               <div className="relative">
                 <div className="flex justify-between mb-4 px-2">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center border border-orange-500/30">
                       <span className="text-sm font-black text-orange-400">02</span>
                     </div>
-                    <span className="text-xs font-black uppercase tracking-widest text-orange-400/80">Rust Native Binary 2024</span>
+                    <span className="text-xs font-black uppercase tracking-widest text-orange-400/80">Rust Native</span>
+                    {finishTimes.rust && (
+                        <span className="text-[10px] font-bold text-orange-500 bg-orange-500/10 px-2 py-0.5 rounded">Finished: {finishTimes.rust.toFixed(3)}s</span>
+                    )}
                   </div>
                   <span className="font-mono font-bold text-orange-400">{rsProgress.toFixed(1)}%</span>
                 </div>
@@ -454,28 +410,33 @@ export default function RaceTrack() {
         {/* How to Play Section */}
         <section className="bg-slate-900/30 rounded-3xl border border-slate-800 p-8 space-y-8">
             <div className="flex items-center gap-3">
-                <h2 className="text-2xl font-black uppercase italic tracking-tight">How to Play & Rules</h2>
+                <HelpCircle className="w-6 h-6 text-blue-400" />
+                <h2 className="text-2xl font-black uppercase italic tracking-tight">Benchmark Guide</h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 <div className="space-y-3">
-                    <h3 className="font-bold text-sm uppercase tracking-wider">1. Pick a Side</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed">Choose your champion: the stable Python Snake or the blazing fast Rust Crab.</p>
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
+                        <Target className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <h3 className="font-bold text-sm uppercase tracking-wider">1. Set Workloads</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed">Adjust the number of operations for each language. Rust typically handles 50-100x more work than Python in the same time.</p>
                 </div>
 
                 <div className="space-y-3">
-                    <h3 className="font-bold text-sm uppercase tracking-wider">2. Set the Odds</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed">Adjust workloads. If you give a runner more work, your payout multiplier increases!</p>
+                    <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center border border-orange-500/30">
+                        <TrendingUp className="w-5 h-5 text-orange-400" />
+                    </div>
+                    <h3 className="font-bold text-sm uppercase tracking-wider">2. Compare Latency</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed">Watch the runners in real-time. The progress bars represent the percentage of the assigned workload completed.</p>
                 </div>
 
                 <div className="space-y-3">
-                    <h3 className="font-bold text-sm uppercase tracking-wider">3. Risk & Reward</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed">Bet $100 or $500. Underdogs pay out significantly more if they pull off an upset.</p>
-                </div>
-
-                <div className="space-y-3">
-                    <h3 className="font-bold text-sm uppercase tracking-wider">4. The House</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed">Beware! The House always wins. Expect rigged delays when you bet too high.</p>
+                    <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
+                        <Cpu className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <h3 className="font-bold text-sm uppercase tracking-wider">3. Analyze Results</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed">Review the final timestamps to see exactly how many seconds each engine took to finish its task.</p>
                 </div>
             </div>
 
@@ -488,7 +449,7 @@ export default function RaceTrack() {
 
         {/* Results Modal */}
         <AnimatePresence>
-          {winnerResult && (
+          {winner && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -499,40 +460,42 @@ export default function RaceTrack() {
                 initial={{ scale: 0.9, y: 40 }}
                 animate={{ scale: 1, y: 0 }}
                 className={`relative w-full max-w-lg p-10 rounded-[3rem] border-2 text-center space-y-6 shadow-[0_0_100px_rgba(0,0,0,0.5)] ${
-                  winnerResult.winner === "python" 
+                  winner === "python" 
                     ? "bg-blue-900/20 border-blue-500/50" 
                     : "bg-orange-900/20 border-orange-500/50"
                 }`}
               >
                 <div className={`absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full flex items-center justify-center border-4 ${
-                  winnerResult.winner === "python" ? "bg-blue-600 border-blue-400" : "bg-orange-600 border-orange-400"
+                  winner === "python" ? "bg-blue-600 border-blue-400" : "bg-orange-600 border-orange-400"
                 }`}>
                   <Trophy className="w-12 h-12 text-white" />
                 </div>
 
                 <div className="pt-8 text-white uppercase">
                   <h2 className={`text-6xl font-black italic tracking-tighter mb-2 ${
-                    winnerResult.winner === "python" ? "text-blue-400" : "text-orange-400"
+                    winner === "python" ? "text-blue-400" : "text-orange-400"
                   }`}>
-                    {winnerResult.winner} Wins!
+                    {winner} Finished First!
                   </h2>
-                  <p className="text-slate-400 font-bold tracking-widest text-sm">Race Completed</p>
+                  <p className="text-slate-400 font-bold tracking-widest text-sm">Benchmark Completed</p>
                 </div>
 
-                <div className={`py-6 px-8 rounded-2xl ${
-                  winnerResult.winner === winnerResult.betOn ? "bg-emerald-500/10 border border-emerald-500/30" : "bg-red-500/10 border border-red-500/30"
-                }`}>
-                  <p className="text-xs uppercase font-black text-slate-500 mb-2">Bet Settlement</p>
-                  <p className={`text-3xl font-black ${winnerResult.winner === winnerResult.betOn ? "text-emerald-400" : "text-red-400"}`}>
-                    {winnerResult.winner === winnerResult.betOn ? `+ $${winnerResult.amount}` : `- $${winnerResult.amount}`}
-                  </p>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
+                        <p className="text-[10px] uppercase font-black text-slate-500 mb-1">Python Time</p>
+                        <p className="text-xl font-mono font-bold text-blue-400">{finishTimes.python?.toFixed(3) || "---"}s</p>
+                    </div>
+                    <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
+                        <p className="text-[10px] uppercase font-black text-slate-500 mb-1">Rust Time</p>
+                        <p className="text-xl font-mono font-bold text-orange-400">{finishTimes.rust?.toFixed(3) || "---"}s</p>
+                    </div>
                 </div>
 
                 <button 
                   onClick={resetRace}
                   className="w-full py-5 bg-slate-100 text-slate-950 rounded-2xl font-black text-lg hover:bg-white hover:scale-[1.02] transition-all shadow-xl active:scale-95 uppercase"
                 >
-                  Next Round
+                  Clear Results
                 </button>
               </motion.div>
             </motion.div>
