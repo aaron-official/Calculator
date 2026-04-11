@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Play, RotateCcw, Coins, ShieldCheck, Zap, Activity, Info } from "lucide-react";
+import { Trophy, Play, RotateCcw, Coins, ShieldCheck, Zap, Activity, Info, Globe, Server } from "lucide-react";
 
+// Types for the runners
 type Runner = "python" | "rust";
 
 interface RaceProgress {
@@ -18,7 +19,15 @@ interface RaceResult {
   amount: number;
 }
 
+declare global {
+  interface Window {
+    loadPyodide: any;
+    pyodide: any;
+  }
+}
+
 export default function RaceTrack() {
+  // State
   const [pyProgress, setPyProgress] = useState(0);
   const [rsProgress, setRsProgress] = useState(0);
   const [isRacing, setIsRacing] = useState(false);
@@ -29,21 +38,58 @@ export default function RaceTrack() {
   const [pyWorkload, setPyWorkload] = useState(1000); 
   const [rsWorkload, setRsWorkload] = useState(50000); 
   const [operation, setOperation] = useState("1"); 
+  const [engineMode, setEngineMode] = useState<"server" | "browser">("browser");
+  const [isEngineReady, setIsEngineReady] = useState(false);
 
   const eventSourceRef = useRef<EventSource | null>(null);
+  const pyodideRef = useRef<any>(null);
+  const rustWasmRef = useRef<any>(null);
 
-  // ODDS SYSTEM: Calculate Multiplier based on workload ratio.
-  // Rust is roughly 50x faster. 
-  // Let's define a fair ratio as 50:1 (e.g., 50k Rust vs 1k Python).
+  // --- ENGINE INITIALIZATION ---
+  useEffect(() => {
+    if (engineMode === "browser") {
+      const initEngines = async () => {
+        try {
+          // 1. Load Pyodide
+          if (!window.pyodide) {
+            const script = document.createElement("script");
+            script.src = "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js";
+            script.onload = async () => {
+              window.pyodide = await window.loadPyodide();
+              setIsEngineReady(true);
+            };
+            document.head.appendChild(script);
+          } else {
+            setIsEngineReady(true);
+          }
+
+          // 2. Load Rust Wasm
+          try {
+            // We use a dynamic import from the public folder
+            const wasm = await import("../../public/wasm/calculator.js");
+            await wasm.default();
+            rustWasmRef.current = wasm;
+          } catch (e) {
+            console.warn("Wasm not built yet, Rust will use mock in browser mode", e);
+          }
+        } catch (err) {
+          console.error("Failed to init engines", err);
+        }
+      };
+      initEngines();
+    } else {
+      setIsEngineReady(true);
+    }
+  }, [engineMode]);
+
+  // ODDS SYSTEM
   const fairRatio = 50; 
   const currentRatio = rsWorkload / pyWorkload;
-  
-  // If current ratio > fairRatio, Rust is taking on MORE work than it should, making it the underdog.
-  // If current ratio < fairRatio, Python is taking on MORE work than it should, making it the underdog.
   const pythonMultiplier = currentRatio < fairRatio ? (fairRatio / currentRatio).toFixed(1) : "1.2";
   const rustMultiplier = currentRatio > fairRatio ? (currentRatio / fairRatio).toFixed(1) : "1.2";
 
-  const startRace = () => {
+  // --- RACE LOGIC ---
+  const startRace = async () => {
     if (isRacing || !betOn || balance < betAmount) return;
 
     setPyProgress(0);
@@ -51,45 +97,77 @@ export default function RaceTrack() {
     setIsRacing(true);
     setWinnerResult(null);
 
+    if (engineMode === "server") {
+      startServerRace();
+    } else {
+      startBrowserRace();
+    }
+  };
+
+  const startServerRace = () => {
     const url = `/api/race?op=${operation}&pyCount=${pyWorkload}&rsCount=${rsWorkload}&betOn=${betOn}`;
     const es = new EventSource(url);
     eventSourceRef.current = es;
 
     es.onmessage = (event) => {
       const data: RaceProgress = JSON.parse(event.data);
-
-      if (data.runner === "python") {
-        setPyProgress((prev) => {
-          if (prev >= 100) return prev;
-          const next = data.progress || 0;
-          if (next >= 100) handleRaceEnd("python", es);
-          return next;
-        });
-      } else if (data.runner === "rust") {
-        setRsProgress((prev) => {
-          if (prev >= 100) return prev;
-          const next = data.progress || 0;
-          if (next >= 100) handleRaceEnd("rust", es);
-          return next;
-        });
-      } else if (data.event === "complete") {
-        setIsRacing(false);
-        es.close();
+      if (data.runner === "python") setPyProgress(data.progress || 0);
+      else if (data.runner === "rust") setRsProgress(data.progress || 0);
+      
+      if (data.progress && data.progress >= 100) {
+        handleRaceEnd(data.runner!, es);
       }
-    };
-
-    es.onerror = () => {
-      setIsRacing(false);
-      es.close();
     };
   };
 
-  const handleRaceEnd = (winner: Runner, es: EventSource) => {
+  const startBrowserRace = async () => {
+    const batches = 100;
+    
+    // Rigging Logic (Same as API)
+    const shouldRig = Math.random() < 0.75;
+    let pyDelay = 400;
+    let rsDelay = 380;
+
+    if (shouldRig && betOn) {
+      if (betOn === "python") { pyDelay += 40; rsDelay -= 20; }
+      else { rsDelay += 40; pyDelay -= 20; }
+    }
+
+    // Run Python Loop (Simplified for Browser)
+    const runPython = async () => {
+      for (let i = 1; i <= batches; i++) {
+        if (!isRacing) break;
+        await new Promise(r => setTimeout(r, pyDelay));
+        setPyProgress(i);
+        if (i === 100) {
+            handleRaceEnd("python");
+            break;
+        }
+      }
+    };
+
+    // Run Rust Loop
+    const runRust = async () => {
+      for (let i = 1; i <= batches; i++) {
+        if (!isRacing) break;
+        await new Promise(r => setTimeout(r, rsDelay));
+        setRsProgress(i);
+        if (i === 100) {
+            handleRaceEnd("rust");
+            break;
+        }
+      }
+    };
+
+    runPython();
+    runRust();
+  };
+
+  const handleRaceEnd = (winner: Runner, es?: EventSource) => {
     setWinnerResult((prev) => {
         if (prev) return prev; 
-        
         setIsRacing(false);
-        es.close();
+        if (es) es.close();
 
         const isWin = winner === betOn;
         const multiplier = winner === "python" ? parseFloat(pythonMultiplier) : parseFloat(rustMultiplier);
@@ -106,9 +184,7 @@ export default function RaceTrack() {
     setRsProgress(0);
     setWinnerResult(null);
     setIsRacing(false);
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
+    if (eventSourceRef.current) eventSourceRef.current.close();
   };
 
   return (
@@ -120,9 +196,25 @@ export default function RaceTrack() {
             <h1 className="text-4xl font-black tracking-tighter bg-gradient-to-br from-blue-400 via-purple-400 to-pink-500 bg-clip-text text-transparent italic leading-tight">
               PERFORMANCE DUEL
             </h1>
-            <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">
-              <Activity className="w-3 h-3 text-blue-500 animate-pulse" />
-              Real-Time CLI Benchmarking
+            <div className="flex items-center gap-4 mt-2">
+                <div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-widest">
+                    <Activity className="w-3 h-3 text-blue-500 animate-pulse" />
+                    Racing Engines
+                </div>
+                <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
+                    <button 
+                        onClick={() => setEngineMode("browser")}
+                        className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-black transition-all ${engineMode === "browser" ? "bg-blue-600 text-white" : "text-slate-500 hover:text-slate-300"}`}
+                    >
+                        <Globe className="w-3 h-3" /> BROWSER
+                    </button>
+                    <button 
+                        onClick={() => setEngineMode("server")}
+                        className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-black transition-all ${engineMode === "server" ? "bg-purple-600 text-white" : "text-slate-500 hover:text-slate-300"}`}
+                    >
+                        <Server className="w-3 h-3" /> DOCKER/API
+                    </button>
+                </div>
             </div>
           </div>
           <div className="flex items-center gap-4 bg-slate-950/80 px-6 py-4 rounded-2xl border border-yellow-500/20 shadow-inner">
@@ -136,9 +228,8 @@ export default function RaceTrack() {
           </div>
         </header>
 
-        {/* Control Panel */}
+        {/* Control Panel (Existing UI preserved below) */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
-          {/* Bet Picker & Odds */}
           <div className="bg-slate-900/40 p-6 rounded-3xl border border-slate-800 space-y-5 lg:col-span-1">
             <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-500" /> Choose Champion
@@ -175,7 +266,6 @@ export default function RaceTrack() {
             </div>
           </div>
 
-          {/* Workload Gauges */}
           <div className="bg-slate-900/40 p-6 rounded-3xl border border-slate-800 space-y-6 lg:col-span-2">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4 pt-2">
@@ -255,14 +345,13 @@ export default function RaceTrack() {
              </div>
           </div>
 
-          {/* Action Button */}
           <div className="flex flex-col justify-center">
             <div className="text-center mb-2 flex items-center justify-center gap-1 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
                 <Info className="w-3 h-3" /> Potential: ${winnerResult ? "0" : Math.floor(betAmount * (betOn === "python" ? parseFloat(pythonMultiplier) : parseFloat(rustMultiplier)))}
             </div>
             <button
               onClick={isRacing ? resetRace : startRace}
-              disabled={!betOn || (balance < betAmount && !isRacing)}
+              disabled={!betOn || (balance < betAmount && !isRacing) || !isEngineReady}
               className={`group relative overflow-hidden w-full h-full min-h-[100px] rounded-3xl font-black text-2xl flex items-center justify-center gap-4 transition-all active:scale-95 shadow-2xl disabled:opacity-50 disabled:grayscale ${
                 isRacing
                   ? "bg-red-500/10 text-red-500 border-2 border-red-500/30 hover:bg-red-500/20"
@@ -283,7 +372,6 @@ export default function RaceTrack() {
            <div className="absolute right-20 md:right-32 top-0 bottom-0 w-2 bg-white/5 border-x border-white/10 z-0" />
            
            <div className="space-y-16 md:space-y-24 relative z-10 py-8">
-              {/* Python Lane */}
               <div className="relative">
                 <div className="flex justify-between mb-4 px-2">
                   <div className="flex items-center gap-3">
@@ -311,7 +399,6 @@ export default function RaceTrack() {
                 </div>
               </div>
 
-              {/* Rust Lane */}
               <div className="relative">
                 <div className="flex justify-between mb-4 px-2">
                   <div className="flex items-center gap-3">

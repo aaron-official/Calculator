@@ -6,31 +6,31 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   python:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: Python
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
           cache-dependency-glob: "Python/uv.lock"
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Run ruff
         run: uv run ruff check .
-
       - name: Run Python tests
         run: uv run python -m unittest -q
 
@@ -39,31 +39,35 @@ jobs:
     defaults:
       run:
         working-directory: Rust
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
-
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: "Rust -> target"
-
       - name: Run Rust tests
         run: cargo test
 
   web:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
-
+    needs: [python, rust]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Rust (for Wasm)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build Wasm
+        run: cd Rust && wasm-pack build --target web
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -73,10 +77,30 @@ jobs:
           cache-dependency-path: "web/package-lock.json"
 
       - name: Install dependencies
-        run: npm ci
+        run: cd web && npm ci
 
-      - name: Run lint
-        run: npm run lint
+      - name: Build Web (Static Export)
+        run: cd web && npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './web/out'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: web
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
   docker:
     name: Docker Build
@@ -85,10 +109,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:

@@ -1,3 +1,6 @@
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
 pub fn add_numbers(numbers: &[f64]) -> f64 {
     let mut total = 0.0;
 
@@ -8,6 +11,7 @@ pub fn add_numbers(numbers: &[f64]) -> f64 {
     total
 }
 
+#[wasm_bindgen]
 pub fn subtract_numbers(numbers: &[f64]) -> f64 {
     if numbers.is_empty() {
         return 0.0;
@@ -22,6 +26,7 @@ pub fn subtract_numbers(numbers: &[f64]) -> f64 {
     result
 }
 
+#[wasm_bindgen]
 pub fn divide_numbers(numbers: &[f64]) -> Result<f64, String> {
     if numbers.is_empty() {
         return Ok(0.0);
@@ -39,6 +44,7 @@ pub fn divide_numbers(numbers: &[f64]) -> Result<f64, String> {
     Ok(result)
 }
 
+#[wasm_bindgen]
 pub fn multiply_numbers(numbers: &[f64]) -> f64 {
     let mut product = 1.0;
 

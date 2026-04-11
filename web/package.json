@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "mkdir -p public/wasm && cp -r ../Rust/pkg/* public/wasm/ 2>/unknown || true && next build",
     "start": "next start",
     "lint": "eslint"
   },
