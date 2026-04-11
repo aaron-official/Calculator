@@ -65,7 +65,7 @@ export default function RaceTrack() {
 
           // 2. Load Rust Wasm
           try {
-            // @ts-expect-error - Wasm files are generated at build time
+            // @ts-ignore - Wasm files are generated at build time
             const wasm = await import("../wasm/calculator.js");
             await wasm.default();
             rustWasmRef.current = wasm;
