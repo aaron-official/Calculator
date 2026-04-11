@@ -17,21 +17,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "Python/uv.lock"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install Python tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install ruff
-
       - name: Run ruff
-        run: ruff check .
+        run: uv run ruff check .
 
       - name: Run Python tests
-        run: python -m unittest -q
+        run: uv run python -m unittest -q
 
   rust:
     runs-on: ubuntu-latest
@@ -45,6 +46,11 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "Rust -> target"
 
       - name: Run Rust tests
         run: cargo test
