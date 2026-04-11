@@ -271,7 +271,7 @@ export default function RaceTrack() {
             >
               <div className="relative z-10 flex items-center gap-3">
                 {isRacing ? <RotateCcw className="w-8 h-8" /> : <Play className="w-8 h-8 fill-current translate-x-1" />}
-                <span className="tracking-tighter">{isRacing ? "ABORT" : "FIGHT!"}</span>
+                <span className="tracking-tighter">{isRacing ? "ABORT" : "RACE!"}</span>
               </div>
             </button>
           </div>
