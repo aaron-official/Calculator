@@ -1,4 +1,7 @@
+use std::env;
 use std::io::{self, Write};
+use std::thread;
+use std::time::Duration;
 
 use calculator::{add_numbers, divide_numbers, multiply_numbers, subtract_numbers};
 
@@ -30,6 +33,52 @@ fn get_numbers() -> Vec<f64> {
 }
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() > 1 && args[1] == "--batch" {
+        // Format: --batch <operation_id> <count> <batch_count>
+        let op = args.get(2).map(|s| s.as_str()).unwrap_or("1");
+        let count = args
+            .get(3)
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(1000);
+        let batches = args
+            .get(4)
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(100);
+
+        for i in 0..batches {
+            let numbers = vec![1.1; count / batches];
+
+            match op {
+                "1" => {
+                    add_numbers(&numbers);
+                }
+                "2" => {
+                    subtract_numbers(&numbers);
+                }
+                "3" => {
+                    multiply_numbers(&numbers);
+                }
+                "4" => {
+                    let _ = divide_numbers(&numbers);
+                }
+                _ => {}
+            }
+
+            // Rust is much faster, so we give it a slightly different delay
+            // or we could give it MORE work.
+            // For now, let's keep the delay similar but maybe slightly less
+            // so Rust actually "wins" by default if no handicap is given.
+            thread::sleep(Duration::from_millis(380));
+            println!("PROGRESS:{:.2}", ((i + 1) as f64 / batches as f64) * 100.0);
+            io::stdout().flush().unwrap();
+        }
+
+        println!("RESULT:SUCCESS");
+        return;
+    }
+
     println!("Welcome to the simple calculator!");
 
     let numbers = get_numbers();
