@@ -1,200 +1,84 @@
-# Calculator
+# 🏁 Performance Duel: Python vs Rust
 
-[![Python](https://img.shields.io/badge/Python-3.12-blue?style=for-the-badge&logo=python&logoColor=white)](./Python)
-[![Rust](https://img.shields.io/badge/Rust-Edition%202024-black?style=for-the-badge&logo=rust&logoColor=white)](./Rust)
-[![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)](./.github/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/Tests-Python%20%7C%20Rust-success?style=for-the-badge&logo=checkmarx&logoColor=white)](./.github/workflows/ci.yml)
-[![TDD Style](https://img.shields.io/badge/Workflow-TDD%20Style-orange?style=for-the-badge)](#testing-strategy)
-[![Benchmark](https://img.shields.io/badge/Benchmark-Rust%20wins%20at%20500x%20input-red?style=for-the-badge)](#current-performance-observation)
+[![Static Site](https://img.shields.io/badge/Live-GitHub%20Pages-blue?style=for-the-badge&logo=github)](https://aaron-official.github.io/Calculator/)
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue?style=for-the-badge&logo=docker)](./Dockerfile)
+[![Wasm](https://img.shields.io/badge/Engine-WebAssembly-orange?style=for-the-badge&logo=webassembly)](./Rust)
+[![Pyodide](https://img.shields.io/badge/Engine-Pyodide-yellow?style=for-the-badge&logo=python)](./Python)
 
-A two-language calculator project with matching command-line implementations in Python and Rust, backed by tests, CI, and a Rust-based simulation that benchmarks both programs end to end.
+Welcome to **Performance Duel**, a gamified benchmarking arena where the classic Python vs Rust rivalry is settled on the race track. What started as a simple calculator is now a high-stakes betting game powered by cutting-edge web technologies.
 
-## Highlights
+## 🎮 The Game
 
-- Matching calculator flows in Python and Rust
-- Clear separation between CLI code and reusable logic
-- Test-first mindset with coverage around core behavior
-- GitHub Actions CI for both languages
-- A simulation that compares Python and Rust as full programs, not just raw math functions
+In **Performance Duel**, you bet on which language can process a massive workload of arithmetic operations the fastest.
 
-## Architecture
+### Key Features
+- **Hybrid Racing Engines:** 
+  - **Browser Mode:** Executes Rust via **WebAssembly** and Python via **Pyodide** directly in your browser tab. No server required!
+  - **Server Mode:** Leverages **Docker** and a Next.js API to run native binaries for maximum raw performance.
+- **Dynamic Odds System:** Adjust the "Hardware Handicap" for Rust or the "Python Workload." The more lopsided the workload, the higher the payout multiplier for the underdog!
+- **The Betting Arena:** Start with $1,000 and try to grow your balance. But beware...
+- **The House Always Wins:** Experience gritty realism with a rigging engine that subtly sabotages runners when the stakes are too high.
 
-The project is split into two independent implementations:
+## 🛠 Technical Architecture
 
-- `Python/` contains the Python calculator CLI and its tests
-- `Rust/` contains the Rust calculator library, CLI, tests, and simulation binary
+This project demonstrates a unique multi-language stack working in harmony:
 
-The Rust version is structured a little more formally:
+- **Rust Engine (`/Rust`):** 
+  - Compiled to a native binary for the CLI and Server Mode.
+  - Compiled to **WebAssembly (Wasm)** using `wasm-pack` for lightning-fast browser execution.
+- **Python Engine (`/Python`):**
+  - Run via `uv` for local CLI and Server Mode.
+  - Executed via **Pyodide** in the browser, allowing real Python scripts to run in a sandboxed environment.
+- **Frontend (`/web`):**
+  - Built with **Next.js 15 (App Router)** and **Tailwind CSS v4**.
+  - Uses **Framer Motion** for smooth, high-fidelity race animations.
+  - Orchestrates real-time progress updates via **Server-Sent Events (SSE)** in Server Mode.
 
-- `src/lib.rs` holds reusable calculator logic
-- `src/main.rs` holds the interactive CLI
-- `tests/calculator_tests.rs` holds separate integration-style tests
-- `src/bin/simulation.rs` holds the Python-vs-Rust performance comparison
+## 🚀 How to Run
 
-That split keeps the business logic testable and prevents the CLI from being tightly coupled to the arithmetic code.
+### 1. In the Browser (Easiest)
+Visit the live site: [aaron-official.github.io/Calculator/](https://aaron-official.github.io/Calculator/)
 
-## Testing Strategy
-
-This project follows a TDD-style workflow around the core behaviors:
-
-- define the expected behavior
-- write small tests around that behavior
-- implement the simplest code that makes the tests pass
-- refactor while keeping the tests green
-
-The tests focus on the parts that matter most in a beginner-friendly calculator:
-
-- valid numeric input
-- invalid input handling
-- empty input safety checks
-- correct addition logic
-- correct multiplication logic
-- main program flow
-
-### Python Test Coverage
-
-The Python test suite checks:
-
-- number collection from mocked user input
-- graceful handling of invalid values
-- addition and multiplication correctness
-- early exit when no numbers are entered
-- the main addition and multiplication flows
-
-Run it with:
-
+### 2. Local Development
 ```bash
+# Install dependencies
+cd web
+npm install
+
+# Run the dev server
+npm run dev
+```
+*Note: Browser mode will detect your environment and load the Wasm/Pyodide engines automatically.*
+
+### 3. Native CLI
+You can still run the engines manually in your terminal:
+```bash
+# Rust
+cd Rust
+cargo run -- --batch 1 50000 100 0
+
+# Python
 cd Python
-py -m unittest -q
+uv run python calculator.py --batch 1 1000 100 0
 ```
 
-### Rust Test Coverage
+## 🐳 Docker Deployment
 
-The Rust test suite checks:
-
-- addition correctness
-- multiplication correctness
-- empty-list behavior for both operations
-
-Run it with:
+The project is fully dockerized for deployment to platforms like Render, AWS, or Railway.
 
 ```bash
-cd Rust
-cargo test
+docker build -t performance-duel .
+docker run -p 3000:3000 performance-duel
 ```
 
-## Running the Applications
+## 🤖 Continuous Integration
 
-### Python
+Our GitHub Actions workflow handles the heavy lifting:
+1. **Validates** logic with Python and Rust unit tests.
+2. **Compiles** Rust to WebAssembly.
+3. **Builds** the Next.js static export.
+4. **Deploys** the game automatically to **GitHub Pages**.
+5. **Verifies** the production **Docker** build.
 
-```bash
-cd Python
-py calculator.py
-```
-
-### Rust
-
-```bash
-cd Rust
-cargo run --bin calculator
-```
-
-## Performance Simulation
-
-The simulation is implemented in Rust and compares the Python calculator against the Rust calculator by running both as real CLI programs with generated input.
-
-This is important because the comparison includes:
-
-- process startup
-- input parsing
-- loop execution
-- operation selection
-- final output path
-
-In other words, this is closer to an end-to-end CLI benchmark than a micro-benchmark of arithmetic alone.
-
-Run it with:
-
-```bash
-cd Rust
-cargo run --bin simulation
-```
-
-## Current Performance Observation
-
-One of the most interesting results in this repository is that the Rust calculator still wins even when it is given dramatically more work than the Python calculator.
-
-Current simulation settings:
-
-- Python numbers: `10`
-- Rust numbers: `5000`
-- Ratio: Rust processes `500x` more numbers
-- Rounds: `5`
-
-Sample run:
-
-```text
-Python vs Rust calculator simulation
-Python numbers generated: 10
-Rust numbers generated: 5000
-Rounds per calculator: 5
-
-Addition race
-Python numbers: 10
-Rust numbers: 5000
-Average Python time: 99.17246ms
-Average Rust time: 29.85396ms
-Rust finished first.
-
-Multiplication race
-Python numbers: 10
-Rust numbers: 5000
-Average Python time: 99.54876ms
-Average Rust time: 32.69272ms
-Rust finished first.
-```
-
-That means the Rust calculator is currently outperforming the Python calculator even while handling 500 times more numeric input in the same simulation.
-
-This does not prove that Rust is always faster in every scenario, but it does show that for this CLI workload, Rust has a very large performance advantage.
-
-## Continuous Integration
-
-The CI workflow in [`.github/workflows/ci.yml`](/C:/Users/OFFICIAL/Desktop/Calculator/.github/workflows/ci.yml) validates both sides of the project:
-
-- Python linting with `ruff`
-- Python tests with `unittest`
-- Rust tests with `cargo test`
-
-That keeps the project honest across both implementations and makes regressions easier to catch.
-
-## Project Layout
-
-```text
-Calculator/
-|-- .github/
-|   `-- workflows/
-|       `-- ci.yml
-|-- Python/
-|   |-- calculator.py
-|   |-- test_calculator.py
-|   `-- pyproject.toml
-|-- Rust/
-|   |-- src/
-|   |   |-- bin/
-|   |   |   `-- simulation.rs
-|   |   |-- lib.rs
-|   |   `-- main.rs
-|   |-- tests/
-|   |   `-- calculator_tests.rs
-|   |-- Cargo.toml
-|   `-- Cargo.lock
-`-- README.md
-```
-
-## Engineering Notes
-
-- The Python version optimizes for clarity and beginner readability
-- The Rust version adds stronger structure through library and binary separation
-- The simulation reuses generated input so comparisons are consistent
-- The project intentionally keeps the feature set small so quality, tests, and comparison stay easy to understand
+---
+*Created as a class project to explore the performance characteristics of interpreted vs compiled languages.*
