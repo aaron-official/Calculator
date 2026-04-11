@@ -42,6 +42,20 @@ def subtract_numbers(numbers):
     return result
 
 
+def divide_numbers(numbers):
+    """Return the result of dividing the first number by the rest of the numbers."""
+    if not numbers:
+        return 0
+
+    result = numbers[0]
+    for number in numbers[1:]:
+        if number == 0:
+            raise ValueError("Division by zero is not allowed.")
+        result /= number
+
+    return result
+
+
 def multiply_numbers(numbers):
     """Return the product of all numbers in the list."""
     product = 1
@@ -66,8 +80,9 @@ def main():
     print("1. Addition")
     print("2. Subtraction")
     print("3. Multiplication")
+    print("4. Division")
 
-    choice = input("Enter your choice (1, 2, or 3): ").strip()
+    choice = input("Enter your choice (1, 2, 3, or 4): ").strip()
 
     if choice == "1":
         total = add_numbers(numbers)
@@ -78,8 +93,14 @@ def main():
     elif choice == "3":
         product = multiply_numbers(numbers)
         print(f"The product is: {product}")
+    elif choice == "4":
+        try:
+            result = divide_numbers(numbers)
+            print(f"The result is: {result}")
+        except ValueError as e:
+            print(e)
     else:
-        print("Invalid choice. Please run the program again and choose 1, 2, or 3.")
+        print("Invalid choice. Please run the program again and choose 1, 2, 3, or 4.")
 
 
 if __name__ == "__main__":

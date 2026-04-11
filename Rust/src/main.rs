@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use calculator::{add_numbers, multiply_numbers, subtract_numbers};
+use calculator::{add_numbers, divide_numbers, multiply_numbers, subtract_numbers};
 
 fn get_numbers() -> Vec<f64> {
     let mut numbers = Vec::new();
@@ -43,7 +43,8 @@ fn main() {
     println!("1. Addition");
     println!("2. Subtraction");
     println!("3. Multiplication");
-    print!("Enter your choice (1, 2, or 3): ");
+    println!("4. Division");
+    print!("Enter your choice (1, 2, 3, or 4): ");
     io::stdout().flush().expect("Failed to flush stdout");
 
     let mut choice = String::new();
@@ -51,16 +52,22 @@ fn main() {
         .read_line(&mut choice)
         .expect("Failed to read input");
 
-    if choice.trim() == "1" {
+    let trimmed_choice = choice.trim();
+    if trimmed_choice == "1" {
         let total = add_numbers(&numbers);
         println!("The sum is: {}", total);
-    } else if choice.trim() == "2" {
+    } else if trimmed_choice == "2" {
         let result = subtract_numbers(&numbers);
         println!("The result is: {}", result);
-    } else if choice.trim() == "3" {
+    } else if trimmed_choice == "3" {
         let product = multiply_numbers(&numbers);
         println!("The product is: {}", product);
+    } else if trimmed_choice == "4" {
+        match divide_numbers(&numbers) {
+            Ok(result) => println!("The result is: {}", result),
+            Err(e) => println!("{}", e),
+        }
     } else {
-        println!("Invalid choice. Please run the program again and choose 1, 2, or 3.");
+        println!("Invalid choice. Please run the program again and choose 1, 2, 3, or 4.");
     }
 }

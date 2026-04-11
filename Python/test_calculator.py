@@ -3,7 +3,7 @@ import unittest
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
-from calculator import add_numbers, get_numbers, main, multiply_numbers, subtract_numbers
+from calculator import add_numbers, divide_numbers, get_numbers, main, multiply_numbers, subtract_numbers
 
 
 class CalculatorTests(unittest.TestCase):
@@ -27,6 +27,14 @@ class CalculatorTests(unittest.TestCase):
     def test_subtract_numbers(self):
         self.assertEqual(subtract_numbers([10.0, 2.0, 3.0]), 5.0)
         self.assertEqual(subtract_numbers([5.0]), 5.0)
+
+    def test_divide_numbers(self):
+        self.assertEqual(divide_numbers([10.0, 2.0]), 5.0)
+        self.assertEqual(divide_numbers([10.0, 2.0, 2.5]), 2.0)
+
+    def test_divide_numbers_by_zero(self):
+        with self.assertRaises(ValueError):
+            divide_numbers([10.0, 0.0])
 
     def test_multiply_numbers(self):
         self.assertEqual(multiply_numbers([2.0, 3.0, 5.0]), 30.0)
@@ -57,6 +65,24 @@ class CalculatorTests(unittest.TestCase):
             main()
 
         self.assertIn("The result is: 5.0", output.getvalue())
+
+    @patch("builtins.input", side_effect=["20", "2", "2", "done", "4"])
+    def test_main_division_flow(self, mock_input):
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            main()
+
+        self.assertIn("The result is: 5.0", output.getvalue())
+
+    @patch("builtins.input", side_effect=["10", "0", "done", "4"])
+    def test_main_division_by_zero_flow(self, mock_input):
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            main()
+
+        self.assertIn("Division by zero is not allowed.", output.getvalue())
 
     @patch("builtins.input", side_effect=["2", "3", "4", "done", "3"])
     def test_main_multiplication_flow(self, mock_input):
