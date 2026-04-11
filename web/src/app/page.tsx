@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Play, RotateCcw, Zap, Activity, Info, Globe, Server, Loader2, HelpCircle, Target, TrendingUp, Cpu } from "lucide-react";
+import { Trophy, Play, RotateCcw, Zap, Activity, Globe, Server, Loader2, Cpu } from "lucide-react";
 
 // Types for the runners
 type Runner = "python" | "rust";
@@ -134,9 +134,6 @@ export default function RaceTrack() {
 
   const startBrowserRace = async () => {
     const batches = 100;
-    
-    // NO RIGGING: Real timing based on relative speed
-    // Python is ~50ms per batch, Rust is ~5ms per batch in browser
     const pyDelay = 50; 
     const rsDelay = 5;
 
@@ -162,14 +159,7 @@ export default function RaceTrack() {
     setFinishTimes(prev => {
         if (prev[runner]) return prev;
         const next = { ...prev, [runner]: time };
-        
-        // If this is the first one to finish, they are the winner
         if (!winner) setWinner(runner);
-        
-        // Check if both finished
-        if (Object.keys(next).length === 2 || runner === winner) {
-            // Keep racing until both finish or we can stop
-        }
         return next;
     });
 
@@ -180,7 +170,6 @@ export default function RaceTrack() {
     }
   };
 
-  // Close server connection if both finished
   useEffect(() => {
     if (pyProgress >= 100 && rsProgress >= 100 && isRacing) {
         setIsRacing(false);
@@ -410,31 +399,21 @@ export default function RaceTrack() {
         {/* How to Play Section */}
         <section className="bg-slate-900/30 rounded-3xl border border-slate-800 p-8 space-y-8">
             <div className="flex items-center gap-3">
-                <HelpCircle className="w-6 h-6 text-blue-400" />
                 <h2 className="text-2xl font-black uppercase italic tracking-tight">Benchmark Guide</h2>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 <div className="space-y-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
-                        <Target className="w-5 h-5 text-blue-400" />
-                    </div>
                     <h3 className="font-bold text-sm uppercase tracking-wider">1. Set Workloads</h3>
                     <p className="text-xs text-slate-500 leading-relaxed">Adjust the number of operations for each language. Rust typically handles 50-100x more work than Python in the same time.</p>
                 </div>
 
                 <div className="space-y-3">
-                    <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center border border-orange-500/30">
-                        <TrendingUp className="w-5 h-5 text-orange-400" />
-                    </div>
                     <h3 className="font-bold text-sm uppercase tracking-wider">2. Compare Latency</h3>
                     <p className="text-xs text-slate-500 leading-relaxed">Watch the runners in real-time. The progress bars represent the percentage of the assigned workload completed.</p>
                 </div>
 
                 <div className="space-y-3">
-                    <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center border border-purple-500/30">
-                        <Cpu className="w-5 h-5 text-purple-400" />
-                    </div>
                     <h3 className="font-bold text-sm uppercase tracking-wider">3. Analyze Results</h3>
                     <p className="text-xs text-slate-500 leading-relaxed">Review the final timestamps to see exactly how many seconds each engine took to finish its task.</p>
                 </div>
