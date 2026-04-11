@@ -107,6 +107,7 @@ def main():
     print("Welcome to the simple calculator!")
     numbers = get_numbers()
     if not numbers:
+        print("No numbers were entered. Exiting the program.")
         return
 
     print("\nChoose an operation:")

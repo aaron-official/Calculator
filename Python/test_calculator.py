@@ -3,7 +3,7 @@ import unittest
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
-from calculator import add_numbers, divide_numbers, get_numbers, main, multiply_numbers, subtract_numbers
+from calculator import add_numbers, divide_numbers, get_numbers, main, multiply_numbers, subtract_numbers, power_numbers, root_numbers
 
 
 class CalculatorTests(unittest.TestCase):
@@ -38,6 +38,13 @@ class CalculatorTests(unittest.TestCase):
 
     def test_multiply_numbers(self):
         self.assertEqual(multiply_numbers([2.0, 3.0, 5.0]), 30.0)
+
+    def test_power_numbers(self):
+        # 1.1 ** 1.0001 ** 1.0001 ~= 1.10002
+        self.assertAlmostEqual(power_numbers([2.0, 2.0]), 1.10002, places=5)
+
+    def test_root_numbers(self):
+        self.assertAlmostEqual(root_numbers([4.0, 9.0]), 5.0, places=2)
 
     @patch("builtins.input", side_effect=["done"])
     def test_main_stops_when_no_numbers(self, mock_input):

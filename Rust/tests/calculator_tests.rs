@@ -1,4 +1,4 @@
-use calculator::{add_numbers, divide_numbers, multiply_numbers, subtract_numbers};
+use calculator::{add_numbers, divide_numbers, multiply_numbers, power_numbers, root_numbers, subtract_numbers};
 
 #[test]
 fn add_numbers_returns_total() {
@@ -31,6 +31,19 @@ fn divide_numbers_by_zero_returns_error() {
 fn multiply_numbers_returns_product() {
     let numbers = vec![2.0, 3.0, 5.0];
     assert_eq!(multiply_numbers(&numbers), 30.0);
+}
+
+#[test]
+fn power_numbers_returns_result() {
+    let numbers = vec![2.0, 2.0];
+    let result = power_numbers(&numbers);
+    assert!((result - 1.10002).abs() < 0.0001);
+}
+
+#[test]
+fn root_numbers_returns_result() {
+    let numbers = vec![4.0, 9.0];
+    assert_eq!(root_numbers(&numbers), 5.0);
 }
 
 #[test]
