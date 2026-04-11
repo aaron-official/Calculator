@@ -30,6 +30,18 @@ def add_numbers(numbers):
     return total
 
 
+def subtract_numbers(numbers):
+    """Return the result of subtracting the rest of the numbers from the first one."""
+    if not numbers:
+        return 0
+
+    result = numbers[0]
+    for number in numbers[1:]:
+        result -= number
+
+    return result
+
+
 def multiply_numbers(numbers):
     """Return the product of all numbers in the list."""
     product = 1
@@ -52,18 +64,22 @@ def main():
 
     print("\nChoose an operation:")
     print("1. Addition")
-    print("2. Multiplication")
+    print("2. Subtraction")
+    print("3. Multiplication")
 
-    choice = input("Enter your choice (1 or 2): ").strip()
+    choice = input("Enter your choice (1, 2, or 3): ").strip()
 
     if choice == "1":
         total = add_numbers(numbers)
         print(f"The sum is: {total}")
     elif choice == "2":
+        result = subtract_numbers(numbers)
+        print(f"The result is: {result}")
+    elif choice == "3":
         product = multiply_numbers(numbers)
         print(f"The product is: {product}")
     else:
-        print("Invalid choice. Please run the program again and choose 1 or 2.")
+        print("Invalid choice. Please run the program again and choose 1, 2, or 3.")
 
 
 if __name__ == "__main__":

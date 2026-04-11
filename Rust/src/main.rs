@@ -1,6 +1,6 @@
 use std::io::{self, Write};
 
-use calculator::{add_numbers, multiply_numbers};
+use calculator::{add_numbers, multiply_numbers, subtract_numbers};
 
 fn get_numbers() -> Vec<f64> {
     let mut numbers = Vec::new();
@@ -41,8 +41,9 @@ fn main() {
 
     println!("\nChoose an operation:");
     println!("1. Addition");
-    println!("2. Multiplication");
-    print!("Enter your choice (1 or 2): ");
+    println!("2. Subtraction");
+    println!("3. Multiplication");
+    print!("Enter your choice (1, 2, or 3): ");
     io::stdout().flush().expect("Failed to flush stdout");
 
     let mut choice = String::new();
@@ -54,9 +55,12 @@ fn main() {
         let total = add_numbers(&numbers);
         println!("The sum is: {}", total);
     } else if choice.trim() == "2" {
+        let result = subtract_numbers(&numbers);
+        println!("The result is: {}", result);
+    } else if choice.trim() == "3" {
         let product = multiply_numbers(&numbers);
         println!("The product is: {}", product);
     } else {
-        println!("Invalid choice. Please run the program again and choose 1 or 2.");
+        println!("Invalid choice. Please run the program again and choose 1, 2, or 3.");
     }
 }
