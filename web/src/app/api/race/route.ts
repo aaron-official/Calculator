@@ -28,8 +28,7 @@ export async function GET(req: NextRequest) {
       });
 
       // Spawn Rust
-      // Note: We might need to build it first for better performance, but cargo run handles it.
-      const rustProc = spawn("cargo", ["run", "--quiet", "--", "--batch", operation, rustCount, batches], {
+      const rustProc = spawn("cargo", ["run", "--quiet", "--bin", "calculator", "--", "--batch", operation, rustCount, batches], {
         cwd: rustPath,
       });
 
