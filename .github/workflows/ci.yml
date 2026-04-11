@@ -79,8 +79,11 @@ jobs:
       - name: Install dependencies
         run: cd web && npm ci
 
+      # Remove API routes for static export (GitHub Pages doesn't support them)
       - name: Build Web (Static Export)
-        run: cd web && npm run build
+        run: |
+          rm -rf web/src/app/api
+          cd web && npm run build
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
