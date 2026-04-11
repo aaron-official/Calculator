@@ -7,9 +7,10 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  // Base path is only needed for GitHub Pages subfolder deployment
+  // Ensure the project name matches your repository name exactly
   basePath: isStatic ? '/Calculator' : '',
-  assetPrefix: isStatic ? '/Calculator' : '',
+  // Asset prefix is crucial for CSS/JS loading on subpaths
+  assetPrefix: isStatic ? '/Calculator/' : '',
 };
 
 export default nextConfig;

@@ -86,6 +86,7 @@ jobs:
         run: |
           rm -rf web/src/app/api
           cd web && npm run build
+          touch web/out/.nojekyll
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
