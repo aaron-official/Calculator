@@ -26,6 +26,7 @@ declare global {
   }
 }
 
+// Performance Duel - Main Racing Arena
 export default function RaceTrack() {
   // State
   const [pyProgress, setPyProgress] = useState(0);
