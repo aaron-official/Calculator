@@ -85,8 +85,9 @@ jobs:
           STATIC_BUILD: "true"
         run: |
           rm -rf web/src/app/api
-          cd web && npm run build
-          touch web/out/.nojekyll
+          cd web
+          npm run build
+          touch out/.nojekyll
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
