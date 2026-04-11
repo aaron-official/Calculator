@@ -56,10 +56,16 @@ export async function GET(req: NextRequest) {
       });
 
       // Spawn Rust with rigged delay
-      const rustProc = spawn("cargo", ["run", "--quiet", "--bin", "calculator", "--", "--batch", operation, rustCount, batches, rsDelay.toString()], {
-        cwd: rustPath,
-      });
-
+      // Spawn Rust
+      // In production/Docker, we use the compiled binary directly for speed
+      const isProduction = process.env.NODE_ENV === "production";
+      const rustProc = isProduction
+        ? spawn("./calculator", ["--batch", operation, rustCount, batches, rsDelay.toString()], {
+            cwd: rustPath,
+          })
+        : spawn("cargo", ["run", "--quiet", "--bin", "calculator", "--", "--batch", operation, rustCount, batches, rsDelay.toString()], {
+            cwd: rustPath,
+          });
       pythonProc.stdout.on("data", (data) => {
         const line = data.toString().trim();
         if (line.startsWith("PROGRESS:")) {

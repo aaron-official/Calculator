@@ -1,0 +1,15 @@
+.git
+.github
+**/node_modules
+**/target
+**/.next
+**/.venv
+**/.pytest_cache
+**/.ruff_cache
+**/.uv-cache
+web/out
+web/.next
+web/node_modules
+Python/__pycache__
+Python/.venv
+Rust/target
