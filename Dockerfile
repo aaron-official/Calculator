@@ -1,5 +1,5 @@
 # Stage 1: Build Rust
-FROM rust:1.80-slim-bullseye AS rust-builder
+FROM rust:1.85-slim-bullseye AS rust-builder
 WORKDIR /app/Rust
 COPY Rust/ .
 RUN cargo build --release --bin calculator
