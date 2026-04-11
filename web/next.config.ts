@@ -5,8 +5,9 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  // GitHub Pages usually hosts on /repo-name/, but for now we'll assume root or custom domain.
-  // If you use username.github.io/Calculator, you might need basePath: '/Calculator'
+  // Ensure the project name matches your repository name
+  basePath: '/Calculator',
+  assetPrefix: '/Calculator',
 };
 
 export default nextConfig;
