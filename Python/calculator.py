@@ -10,7 +10,8 @@ def get_numbers():
     numbers = []
     while True:
         user_input = input("Enter a number (or 'done' to finish): ").strip()
-        if user_input.lower() == "done": break
+        if user_input.lower() == "done":
+            break
         try:
             number = float(user_input)
             numbers.append(number)
@@ -21,29 +22,35 @@ def get_numbers():
 
 def add_numbers(numbers):
     total = 0
-    for number in numbers: total += number
+    for number in numbers:
+        total += number
     return total
 
 
 def subtract_numbers(numbers):
-    if not numbers: return 0
+    if not numbers:
+        return 0
     result = numbers[0]
-    for number in numbers[1:]: result -= number
+    for number in numbers[1:]:
+        result -= number
     return result
 
 
 def divide_numbers(numbers):
-    if not numbers: return 0
+    if not numbers:
+        return 0
     result = numbers[0]
     for number in numbers[1:]:
-        if number == 0: raise ValueError("Division by zero is not allowed.")
+        if number == 0:
+            raise ValueError("Division by zero is not allowed.")
         result /= number
     return result
 
 
 def multiply_numbers(numbers):
     product = 1
-    for number in numbers: product *= number
+    for number in numbers:
+        product *= number
     return product
 
 
@@ -74,14 +81,21 @@ def main():
         start_time = time.perf_counter()
         for i in range(batches):
             numbers = [1.1] * (count // batches)
-            if op == "1": add_numbers(numbers)
-            elif op == "2": subtract_numbers(numbers)
-            elif op == "3": multiply_numbers(numbers)
-            elif op == "4": 
-                try: divide_numbers(numbers)
-                except ValueError: pass
-            elif op == "5": power_numbers(numbers)
-            elif op == "6": root_numbers(numbers)
+            if op == "1":
+                add_numbers(numbers)
+            elif op == "2":
+                subtract_numbers(numbers)
+            elif op == "3":
+                multiply_numbers(numbers)
+            elif op == "4":
+                try:
+                    divide_numbers(numbers)
+                except ValueError:
+                    pass
+            elif op == "5":
+                power_numbers(numbers)
+            elif op == "6":
+                root_numbers(numbers)
 
             print(f"PROGRESS:{((i + 1) / batches) * 100:.2f}")
             sys.stdout.flush()
@@ -92,7 +106,8 @@ def main():
 
     print("Welcome to the simple calculator!")
     numbers = get_numbers()
-    if not numbers: return
+    if not numbers:
+        return
 
     print("\nChoose an operation:")
     print("1. Addition")
@@ -104,12 +119,18 @@ def main():
 
     choice = input("Enter your choice (1-6): ").strip()
     try:
-        if choice == "1": print(f"The sum is: {add_numbers(numbers)}")
-        elif choice == "2": print(f"The result is: {subtract_numbers(numbers)}")
-        elif choice == "3": print(f"The product is: {multiply_numbers(numbers)}")
-        elif choice == "4": print(f"The result is: {divide_numbers(numbers)}")
-        elif choice == "5": print(f"The result is: {power_numbers(numbers)}")
-        elif choice == "6": print(f"The result is: {root_numbers(numbers)}")
+        if choice == "1":
+            print(f"The sum is: {add_numbers(numbers)}")
+        elif choice == "2":
+            print(f"The result is: {subtract_numbers(numbers)}")
+        elif choice == "3":
+            print(f"The product is: {multiply_numbers(numbers)}")
+        elif choice == "4":
+            print(f"The result is: {divide_numbers(numbers)}")
+        elif choice == "5":
+            print(f"The result is: {power_numbers(numbers)}")
+        elif choice == "6":
+            print(f"The result is: {root_numbers(numbers)}")
     except ValueError as e:
         print(e)
 
