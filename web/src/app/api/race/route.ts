@@ -14,9 +14,6 @@ export async function GET(req: NextRequest) {
   const pythonPath = path.resolve(process.cwd(), "..", "Python");
   const rustPath = path.resolve(process.cwd(), "..", "Rust");
 
-  // TRUE BENCHMARKING: No artificial delays
-  const delay = "0"; 
-
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
@@ -26,22 +23,28 @@ export async function GET(req: NextRequest) {
       };
 
       // Spawn Python
-      const pythonProc = spawn("uv", ["run", "python", "calculator.py", "--batch", operation, pythonCount, batches, delay], {
+      const pythonProc = spawn("uv", ["run", "python", "calculator.py", "--batch", operation, pythonCount, batches], {
         cwd: pythonPath,
       });
 
       // Spawn Rust
-      const rustProc = spawn("cargo", ["run", "--quiet", "--bin", "calculator", "--", "--batch", operation, rustCount, batches, delay], {
-        cwd: rustPath,
-      });
+      const isProduction = process.env.NODE_ENV === "production";
+      const rustProc = isProduction
+        ? spawn("./calculator", ["--batch", operation, rustCount, batches], {
+            cwd: rustPath,
+          })
+        : spawn("cargo", ["run", "--quiet", "--bin", "calculator", "--", "--batch", operation, rustCount, batches], {
+            cwd: rustPath,
+          });
 
       pythonProc.stdout.on("data", (data) => {
         const line = data.toString().trim();
-        // Handle multiple lines in one buffer
         const lines = line.split("\n");
         for (const l of lines) {
             if (l.startsWith("PROGRESS:")) {
                 send({ runner: "python", progress: parseFloat(l.split(":")[1]) });
+            } else if (l.startsWith("RESULT:SUCCESS:")) {
+                send({ runner: "python", time: parseFloat(l.split(":")[2]) });
             }
         }
       });
@@ -52,6 +55,8 @@ export async function GET(req: NextRequest) {
         for (const l of lines) {
             if (l.startsWith("PROGRESS:")) {
                 send({ runner: "rust", progress: parseFloat(l.split(":")[1]) });
+            } else if (l.startsWith("RESULT:SUCCESS:")) {
+                send({ runner: "rust", time: parseFloat(l.split(":")[2]) });
             }
         }
       });

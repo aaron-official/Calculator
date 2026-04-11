@@ -1,7 +1,6 @@
 use std::env;
 use std::io::{self, Write};
-use std::thread;
-use std::time::Duration;
+use std::time::Instant;
 
 use calculator::{add_numbers, divide_numbers, multiply_numbers, subtract_numbers};
 
@@ -36,7 +35,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() > 1 && args[1] == "--batch" {
-        // Format: --batch <operation_id> <count> <batch_count> <delay_ms>
+        // Format: --batch <operation_id> <count> <batch_count>
         let op = args.get(2).map(|s| s.as_str()).unwrap_or("1");
         let count = args
             .get(3)
@@ -46,10 +45,8 @@ fn main() {
             .get(4)
             .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(100);
-        let delay_ms = args
-            .get(5)
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(380);
+
+        let start = Instant::now();
 
         for i in 0..batches {
             let numbers = vec![1.1; count / batches];
@@ -70,13 +67,13 @@ fn main() {
                 _ => {}
             }
 
-            // The House decides the delay
-            thread::sleep(Duration::from_millis(delay_ms));
+            // Output progress as fast as possible
             println!("PROGRESS:{:.2}", ((i + 1) as f64 / batches as f64) * 100.0);
             io::stdout().flush().unwrap();
         }
 
-        println!("RESULT:SUCCESS");
+        let duration = start.elapsed();
+        println!("RESULT:SUCCESS:{:.6}", duration.as_secs_f64());
         return;
     }
 

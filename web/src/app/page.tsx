@@ -10,10 +10,11 @@ type Runner = "python" | "rust";
 interface RaceProgress {
   runner?: Runner;
   progress?: number;
+  time?: number;
   event?: string;
 }
 
-// Performance Duel - True Benchmarking Arena
+// Performance Duel - True High-Fidelity Benchmarking
 export default function RaceTrack() {
   // State
   const [pyProgress, setPyProgress] = useState(0);
@@ -26,7 +27,6 @@ export default function RaceTrack() {
   const [engineMode, setEngineMode] = useState<"server" | "browser">("browser");
   const [isEngineReady, setIsEngineReady] = useState(false);
   const [engineStatus, setEngineStatus] = useState("Initializing...");
-  const [startTime, setStartTime] = useState<number | null>(null);
   const [finishTimes, setFinishTimes] = useState<{python?: number, rust?: number}>({});
 
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -57,7 +57,6 @@ export default function RaceTrack() {
                 setEngineStatus("Loading Rust (Wasm)...");
                 await loadWasm();
               } catch (e) {
-                console.error(e);
                 setEngineStatus("Python failed.");
                 setIsEngineReady(true); 
               }
@@ -80,7 +79,6 @@ export default function RaceTrack() {
             setEngineStatus("Engines Ready");
             setIsEngineReady(true);
           } catch (e) {
-            console.warn("Wasm failed", e);
             setEngineStatus("Simulation Mode Ready");
             setIsEngineReady(true);
           }
@@ -103,7 +101,6 @@ export default function RaceTrack() {
     setIsRacing(true);
     setWinner(null);
     setFinishTimes({});
-    setStartTime(Date.now());
 
     if (engineMode === "server") {
       startServerRace();
@@ -119,11 +116,12 @@ export default function RaceTrack() {
 
     es.onmessage = (event) => {
       const data: RaceProgress = JSON.parse(event.data);
-      if (data.runner === "python") setPyProgress(data.progress || 0);
-      else if (data.runner === "rust") setRsProgress(data.progress || 0);
-      
-      if (data.progress && data.progress >= 100) {
-        handleRaceEnd(data.runner!);
+      if (data.runner === "python") {
+          if (data.progress !== undefined) setPyProgress(data.progress);
+          if (data.time !== undefined) handleRunnerFinished("python", data.time);
+      } else if (data.runner === "rust") {
+          if (data.progress !== undefined) setRsProgress(data.progress);
+          if (data.time !== undefined) handleRunnerFinished("rust", data.time);
       }
     };
 
@@ -137,69 +135,51 @@ export default function RaceTrack() {
   const startBrowserRace = async () => {
     const batches = 100;
     
-    // 1. PYTHON EXECUTION (via Pyodide)
+    // 1. PYTHON EXECUTION
     const runPython = async () => {
-        if (!window.pyodide) {
-            // Mock fallback if Pyodide failed
+        const start = performance.now();
+        if (window.pyodide) {
+            const workPerBatch = pyWorkload / batches;
             for (let i = 1; i <= batches; i++) {
                 if (!isRacingRef.current) break;
-                await new Promise(r => setTimeout(r, 50));
-                setPyProgress(i);
-                if (i === 100) handleRaceEnd("python");
-            }
-            return;
-        }
-
-        // Divide work into batches to show progress
-        const workPerBatch = pyWorkload / batches;
-        for (let i = 1; i <= batches; i++) {
-            if (!isRacingRef.current) break;
-            
-            // Actually run Python code for this batch
-            // We use a simple loop to simulate arithmetic work
-            await window.pyodide.runPythonAsync(`
+                // Actual heavy math loop in Python
+                await window.pyodide.runPythonAsync(`
 result = 0.0
 for _ in range(${Math.floor(workPerBatch)}):
     result += 1.1
-            `);
-            
-            setPyProgress(i);
-            if (i === 100) handleRaceEnd("python");
+                `);
+                setPyProgress(i);
+            }
         }
+        const end = performance.now();
+        handleRunnerFinished("python", (end - start) / 1000);
     };
 
-    // 2. RUST EXECUTION (via Wasm)
+    // 2. RUST EXECUTION
     const runRust = async () => {
-        const hasWasm = !!rustWasmRef.current;
-        const workPerBatch = rsWorkload / batches;
-        const nums = new Float64Array(Math.floor(workPerBatch)).fill(1.1);
-
-        for (let i = 1; i <= batches; i++) {
-            if (!isRacingRef.current) break;
-            
-            if (hasWasm) {
-                // Actually run the compiled Rust logic
+        const start = performance.now();
+        if (rustWasmRef.current) {
+            const workPerBatch = rsWorkload / batches;
+            const nums = new Float64Array(Math.floor(workPerBatch)).fill(1.1);
+            for (let i = 1; i <= batches; i++) {
+                if (!isRacingRef.current) break;
+                // Actual Rust execution
                 if (operation === "1") rustWasmRef.current.add_numbers(nums);
                 else if (operation === "2") rustWasmRef.current.subtract_numbers(nums);
                 else if (operation === "3") rustWasmRef.current.multiply_numbers(nums);
                 else if (operation === "4") rustWasmRef.current.divide_numbers(nums);
-            } else {
-                // Simulation fallback
-                await new Promise(r => setTimeout(r, 5));
+                setRsProgress(i);
             }
-            
-            setRsProgress(i);
-            if (i === 100) handleRaceEnd("rust");
         }
+        const end = performance.now();
+        handleRunnerFinished("rust", (end - start) / 1000);
     };
 
     runPython();
     runRust();
   };
 
-  const handleRaceEnd = (runner: Runner) => {
-    const time = (Date.now() - (startTime || Date.now())) / 1000;
-    
+  const handleRunnerFinished = (runner: Runner, time: number) => {
     setFinishTimes(prev => {
         if (prev[runner]) return prev;
         const next = { ...prev, [runner]: time };
@@ -211,7 +191,7 @@ for _ in range(${Math.floor(workPerBatch)}):
     });
   };
 
-  // Auto-stop racing when both are 100%
+  // Close server connection if both finished
   useEffect(() => {
     if (pyProgress >= 100 && rsProgress >= 100 && isRacing) {
         setIsRacing(false);
@@ -264,7 +244,7 @@ for _ in range(${Math.floor(workPerBatch)}):
             <Cpu className="text-blue-500 w-8 h-8" />
             <div className="flex flex-col">
               <span className="text-[10px] font-black text-blue-500/50 uppercase tracking-tighter">System Health</span>
-              <span className="text-xl font-mono font-black text-blue-400 tracking-tighter">STABLE</span>
+              <span className="text-xl font-mono font-black text-blue-400 tracking-tighter uppercase">{isRacing ? "Busy" : "Idle"}</span>
             </div>
           </div>
         </header>
@@ -279,7 +259,7 @@ for _ in range(${Math.floor(workPerBatch)}):
                       🐍 Python Workload
                     </h2>
                     <span className="text-xs font-mono font-bold text-blue-400 bg-blue-400/10 px-3 py-1 rounded-full border border-blue-400/20">
-                      {pyWorkload.toLocaleString()}
+                      {pyWorkload.toLocaleString()} ops
                     </span>
                   </div>
                   <input
@@ -299,7 +279,7 @@ for _ in range(${Math.floor(workPerBatch)}):
                       🦀 Rust Workload
                     </h2>
                     <span className="text-xs font-mono font-bold text-orange-400 bg-orange-400/10 px-3 py-1 rounded-full border border-orange-400/20">
-                      {rsWorkload.toLocaleString()}
+                      {rsWorkload.toLocaleString()} ops
                     </span>
                   </div>
                   <input
@@ -323,7 +303,7 @@ for _ in range(${Math.floor(workPerBatch)}):
                         value={operation} 
                         onChange={(e) => setOperation(e.target.value)}
                         disabled={isRacing}
-                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs font-bold focus:outline-none focus:ring-2 ring-blue-500/50 appearance-none cursor-pointer hover:border-slate-700 transition-colors text-slate-100"
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs font-bold focus:outline-none focus:ring-2 ring-blue-500/50 appearance-none cursor-pointer hover:border-slate-700 transition-colors text-slate-100 uppercase"
                     >
                         <option value="1">Addition (+)</option>
                         <option value="2">Subtraction (-)</option>
@@ -331,8 +311,8 @@ for _ in range(${Math.floor(workPerBatch)}):
                         <option value="4">Division (/)</option>
                     </select>
                   </div>
-                  <div className="flex-1 text-[10px] text-slate-500 uppercase font-bold tracking-widest">
-                    Observe how each language handles intense arithmetic loops.
+                  <div className="flex-1 text-[10px] text-slate-500 uppercase font-bold tracking-widest leading-relaxed">
+                    Higher workloads provide more stable benchmarks by minimizing overhead noise.
                   </div>
                 </div>
              </div>
@@ -375,9 +355,11 @@ for _ in range(${Math.floor(workPerBatch)}):
                     <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
                       <span className="text-sm font-black text-blue-400">01</span>
                     </div>
-                    <span className="text-xs font-black uppercase tracking-widest text-blue-400/80">Python Interpreter</span>
-                    {finishTimes.python && (
-                        <span className="text-[10px] font-bold text-blue-500 bg-blue-500/10 px-2 py-0.5 rounded">Real Time: {finishTimes.python.toFixed(3)}s</span>
+                    <span className="text-xs font-black uppercase tracking-widest text-blue-400/80 font-mono">Python Interpreter</span>
+                    {finishTimes.python !== undefined && (
+                        <span className="text-[10px] font-bold text-blue-500 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                            CPU Time: {finishTimes.python.toFixed(6)}s
+                        </span>
                     )}
                   </div>
                   <span className="font-mono font-bold text-blue-400">{pyProgress.toFixed(1)}%</span>
@@ -406,9 +388,11 @@ for _ in range(${Math.floor(workPerBatch)}):
                     <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center border border-orange-500/30">
                       <span className="text-sm font-black text-orange-400">02</span>
                     </div>
-                    <span className="text-xs font-black uppercase tracking-widest text-orange-400/80">Rust Native Wasm</span>
-                    {finishTimes.rust && (
-                        <span className="text-[10px] font-bold text-orange-500 bg-orange-500/10 px-2 py-0.5 rounded">Real Time: {finishTimes.rust.toFixed(3)}s</span>
+                    <span className="text-xs font-black uppercase tracking-widest text-orange-400/80 font-mono">Rust Native (Wasm)</span>
+                    {finishTimes.rust !== undefined && (
+                        <span className="text-[10px] font-bold text-orange-500 bg-orange-500/10 px-2 py-0.5 rounded border border-orange-500/20">
+                            CPU Time: {finishTimes.rust.toFixed(6)}s
+                        </span>
                     )}
                   </div>
                   <span className="font-mono font-bold text-orange-400">{rsProgress.toFixed(1)}%</span>
@@ -436,7 +420,7 @@ for _ in range(${Math.floor(workPerBatch)}):
            </div>
         </div>
 
-        {/* How to Play Section */}
+        {/* Benchmark Guide */}
         <section className="bg-slate-900/30 rounded-3xl border border-slate-800 p-8 space-y-8">
             <div className="flex items-center gap-3">
                 <HelpCircle className="w-6 h-6 text-blue-400" />
@@ -448,31 +432,25 @@ for _ in range(${Math.floor(workPerBatch)}):
                     <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center border border-blue-500/30">
                         <Target className="w-5 h-5 text-blue-400" />
                     </div>
-                    <h3 className="font-bold text-sm uppercase tracking-wider text-blue-400">1. Set Workloads</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed font-medium">Assign specific operation counts. Notice that Rust can handle millions while Python typically stays in the thousands for equal time.</p>
+                    <h3 className="font-bold text-sm uppercase tracking-wider text-blue-400">1. Raw Execution</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed font-medium">Artificial delays have been removed. The runners now process their entire workload as fast as the hardware allows.</p>
                 </div>
 
                 <div className="space-y-3">
                     <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center border border-orange-500/30">
                         <TrendingUp className="w-5 h-5 text-orange-400" />
                     </div>
-                    <h3 className="font-bold text-sm uppercase tracking-wider text-orange-400">2. Execute Loop</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed font-medium">The race represents real arithmetic processing. The icons move only as fast as the underlying engine completes its batches.</p>
+                    <h3 className="font-bold text-sm uppercase tracking-wider text-orange-400">2. Engine Timing</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed font-medium">Results are calculated internally by the engines to avoid network/rendering latency noise.</p>
                 </div>
 
                 <div className="space-y-3">
                     <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
                         <Cpu className="w-5 h-5 text-indigo-400" />
                     </div>
-                    <h3 className="font-bold text-sm uppercase tracking-wider text-indigo-400">3. Raw Results</h3>
-                    <p className="text-xs text-slate-500 leading-relaxed font-medium">The final timestamps are calculated using high-resolution performance timers, showing the true delta between interpreted and native code.</p>
+                    <h3 className="font-bold text-sm uppercase tracking-wider text-indigo-400">3. Scale Factor</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed font-medium">Rust often outperforms Python by several orders of magnitude due to native machine code compilation vs interpretation.</p>
                 </div>
-            </div>
-
-            <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-800/50 flex items-center gap-4">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
-                    Browser mode uses <span className="text-blue-400">Pyodide (WebAssembly Python)</span> and <span className="text-orange-400">Native WebAssembly (Rust)</span>.
-                </p>
             </div>
         </section>
 
@@ -504,19 +482,23 @@ for _ in range(${Math.floor(workPerBatch)}):
                   <h2 className={`text-6xl font-black italic tracking-tighter mb-2 ${
                     winner === "python" ? "text-blue-400" : "text-orange-400"
                   }`}>
-                    {winner} Wins!
+                    {winner} Fastest!
                   </h2>
-                  <p className="text-slate-400 font-bold tracking-widest text-sm">Benchmark Completed</p>
+                  <p className="text-slate-400 font-bold tracking-widest text-sm">Execution Reports</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4 text-white">
                     <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
-                        <p className="text-[10px] uppercase font-black text-slate-500 mb-1 tracking-tighter">Python Time</p>
-                        <p className="text-xl font-mono font-bold text-blue-400">{finishTimes.python?.toFixed(3) || "---"}s</p>
+                        <p className="text-[10px] uppercase font-black text-slate-500 mb-1 tracking-tighter">Python (Interpreted)</p>
+                        <p className="text-xl font-mono font-bold text-blue-400 italic">
+                            {finishTimes.python ? `${finishTimes.python.toFixed(6)}s` : "Waiting..."}
+                        </p>
                     </div>
                     <div className="bg-slate-950/50 p-4 rounded-2xl border border-slate-800">
-                        <p className="text-[10px] uppercase font-black text-slate-500 mb-1 tracking-tighter">Rust Time</p>
-                        <p className="text-xl font-mono font-bold text-orange-400">{finishTimes.rust?.toFixed(3) || "---"}s</p>
+                        <p className="text-[10px] uppercase font-black text-slate-500 mb-1 tracking-tighter">Rust (Native)</p>
+                        <p className="text-xl font-mono font-bold text-orange-400 italic">
+                            {finishTimes.rust ? `${finishTimes.rust.toFixed(6)}s` : "Waiting..."}
+                        </p>
                     </div>
                 </div>
 
@@ -524,7 +506,7 @@ for _ in range(${Math.floor(workPerBatch)}):
                   onClick={resetRace}
                   className="w-full py-5 bg-slate-100 text-slate-950 rounded-2xl font-black text-lg hover:bg-white hover:scale-[1.02] transition-all shadow-xl active:scale-95 uppercase"
                 >
-                  Reset Arena
+                  Clear Results
                 </button>
               </motion.div>
             </motion.div>

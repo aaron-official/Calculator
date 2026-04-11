@@ -72,17 +72,20 @@ def multiply_numbers(numbers):
 def main():
     """Run the calculator program."""
     if len(sys.argv) > 1 and sys.argv[1] == "--batch":
-        # Format: --batch <operation_id> <count> <batch_count> <delay_ms>
+        # Format: --batch <operation_id> <count> <batch_count>
         try:
             op = sys.argv[2]
             count = int(sys.argv[3])
             batches = int(sys.argv[4])
-            delay_ms = int(sys.argv[5]) if len(sys.argv) > 5 else 400
         except (IndexError, ValueError):
             print("Invalid batch arguments")
             return
 
+        # Start high-precision timer
+        start_time = time.perf_counter()
+
         for i in range(batches):
+            # The workload
             numbers = [1.1] * (count // batches)
 
             if op == "1":
@@ -97,12 +100,13 @@ def main():
                 except ValueError:
                     pass
 
-            # Use the delay provided by the House
-            time.sleep(delay_ms / 1000.0)
+            # Report progress without sleeping
             print(f"PROGRESS:{((i + 1) / batches) * 100:.2f}")
             sys.stdout.flush()
 
-        print("RESULT:SUCCESS")
+        end_time = time.perf_counter()
+        # Report actual execution time
+        print(f"RESULT:SUCCESS:{end_time - start_time:.6f}")
         return
 
     print("Welcome to the simple calculator!")
