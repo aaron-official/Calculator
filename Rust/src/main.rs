@@ -36,7 +36,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() > 1 && args[1] == "--batch" {
-        // Format: --batch <operation_id> <count> <batch_count>
+        // Format: --batch <operation_id> <count> <batch_count> <delay_ms>
         let op = args.get(2).map(|s| s.as_str()).unwrap_or("1");
         let count = args
             .get(3)
@@ -46,6 +46,10 @@ fn main() {
             .get(4)
             .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(100);
+        let delay_ms = args
+            .get(5)
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(380);
 
         for i in 0..batches {
             let numbers = vec![1.1; count / batches];
@@ -66,11 +70,8 @@ fn main() {
                 _ => {}
             }
 
-            // Rust is much faster, so we give it a slightly different delay
-            // or we could give it MORE work.
-            // For now, let's keep the delay similar but maybe slightly less
-            // so Rust actually "wins" by default if no handicap is given.
-            thread::sleep(Duration::from_millis(380));
+            // The House decides the delay
+            thread::sleep(Duration::from_millis(delay_ms));
             println!("PROGRESS:{:.2}", ((i + 1) as f64 / batches as f64) * 100.0);
             io::stdout().flush().unwrap();
         }

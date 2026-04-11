@@ -9,10 +9,38 @@ export async function GET(req: NextRequest) {
   const operation = searchParams.get("op") || "1";
   const pythonCount = searchParams.get("pyCount") || "1000";
   const rustCount = searchParams.get("rsCount") || "50000";
+  const betOn = searchParams.get("betOn") || "";
   const batches = "100";
 
   const pythonPath = path.resolve(process.cwd(), "..", "Python");
   const rustPath = path.resolve(process.cwd(), "..", "Rust");
+
+  // Base delays for ~40s race
+  let pyDelay = 400; 
+  let rsDelay = 380;
+
+  // --- THE HOUSE ALWAYS WINS (Rigging Logic) ---
+  // 75% chance to sabotage the player's choice
+  const shouldRig = Math.random() < 0.75;
+  
+  if (shouldRig && betOn) {
+    if (betOn === "python") {
+      // User bet on Python, make Python slower or Rust faster
+      pyDelay += Math.floor(Math.random() * 40) + 20; // +20-60ms
+      rsDelay -= Math.floor(Math.random() * 20) + 10; // -10-30ms
+    } else if (betOn === "rust") {
+      // User bet on Rust, make Rust slower or Python faster
+      rsDelay += Math.floor(Math.random() * 40) + 20; 
+      pyDelay -= Math.floor(Math.random() * 20) + 10;
+    }
+  } else if (!shouldRig && betOn) {
+    // 25% chance to give a "Nitro Boost" to the player's choice (to keep them hooked)
+    if (betOn === "python") {
+      pyDelay -= 30;
+    } else {
+      rsDelay -= 30;
+    }
+  }
 
   const stream = new ReadableStream({
     start(controller) {
@@ -22,13 +50,13 @@ export async function GET(req: NextRequest) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };
 
-      // Spawn Python
-      const pythonProc = spawn("uv", ["run", "python", "calculator.py", "--batch", operation, pythonCount, batches], {
+      // Spawn Python with rigged delay
+      const pythonProc = spawn("uv", ["run", "python", "calculator.py", "--batch", operation, pythonCount, batches, pyDelay.toString()], {
         cwd: pythonPath,
       });
 
-      // Spawn Rust
-      const rustProc = spawn("cargo", ["run", "--quiet", "--bin", "calculator", "--", "--batch", operation, rustCount, batches], {
+      // Spawn Rust with rigged delay
+      const rustProc = spawn("cargo", ["run", "--quiet", "--bin", "calculator", "--", "--batch", operation, rustCount, batches, rsDelay.toString()], {
         cwd: rustPath,
       });
 
@@ -61,7 +89,6 @@ export async function GET(req: NextRequest) {
       pythonProc.stderr.on("data", (data) => console.error(`Python Error: ${data}`));
       rustProc.stderr.on("data", (data) => console.error(`Rust Error: ${data}`));
 
-      // Handle stream cancellation
       req.signal.addEventListener("abort", () => {
         pythonProc.kill();
         rustProc.kill();

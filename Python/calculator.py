@@ -72,19 +72,17 @@ def multiply_numbers(numbers):
 def main():
     """Run the calculator program."""
     if len(sys.argv) > 1 and sys.argv[1] == "--batch":
-        # Format: --batch <operation_id> <count> <batch_count>
-        # operation_id: 1=Add, 2=Sub, 3=Mul, 4=Div
+        # Format: --batch <operation_id> <count> <batch_count> <delay_ms>
         try:
             op = sys.argv[2]
             count = int(sys.argv[3])
             batches = int(sys.argv[4])
+            delay_ms = int(sys.argv[5]) if len(sys.argv) > 5 else 400
         except (IndexError, ValueError):
             print("Invalid batch arguments")
             return
 
         for i in range(batches):
-            # Simulate heavy work by doing the operation multiple times
-            # or just processing a chunk of numbers
             numbers = [1.1] * (count // batches)
 
             if op == "1":
@@ -99,10 +97,8 @@ def main():
                 except ValueError:
                     pass
 
-            # Artificial delay to make the race visible (e.g., ~40s total)
-            # We want roughly 40s total.
-            # If batches = 100, then 0.4s sleep = 40s.
-            time.sleep(0.4)
+            # Use the delay provided by the House
+            time.sleep(delay_ms / 1000.0)
             print(f"PROGRESS:{((i + 1) / batches) * 100:.2f}")
             sys.stdout.flush()
 

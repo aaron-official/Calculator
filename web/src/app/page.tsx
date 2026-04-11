@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, Play, RotateCcw, Coins, ShieldCheck, Zap, Activity } from "lucide-react";
+import { Trophy, Play, RotateCcw, Coins, ShieldCheck, Zap, Activity, Info } from "lucide-react";
 
 type Runner = "python" | "rust";
 
@@ -26,10 +26,22 @@ export default function RaceTrack() {
   const [betOn, setBetOn] = useState<Runner | null>(null);
   const [balance, setBalance] = useState(1000);
   const [betAmount, setBetAmount] = useState(100);
-  const [handicap, setHandicap] = useState(50000); 
+  const [pyWorkload, setPyWorkload] = useState(1000); 
+  const [rsWorkload, setRsWorkload] = useState(50000); 
   const [operation, setOperation] = useState("1"); 
 
   const eventSourceRef = useRef<EventSource | null>(null);
+
+  // ODDS SYSTEM: Calculate Multiplier based on workload ratio.
+  // Rust is roughly 50x faster. 
+  // Let's define a fair ratio as 50:1 (e.g., 50k Rust vs 1k Python).
+  const fairRatio = 50; 
+  const currentRatio = rsWorkload / pyWorkload;
+  
+  // If current ratio > fairRatio, Rust is taking on MORE work than it should, making it the underdog.
+  // If current ratio < fairRatio, Python is taking on MORE work than it should, making it the underdog.
+  const pythonMultiplier = currentRatio < fairRatio ? (fairRatio / currentRatio).toFixed(1) : "1.2";
+  const rustMultiplier = currentRatio > fairRatio ? (currentRatio / fairRatio).toFixed(1) : "1.2";
 
   const startRace = () => {
     if (isRacing || !betOn || balance < betAmount) return;
@@ -39,7 +51,7 @@ export default function RaceTrack() {
     setIsRacing(true);
     setWinnerResult(null);
 
-    const url = `/api/race?op=${operation}&pyCount=1000&rsCount=${handicap}`;
+    const url = `/api/race?op=${operation}&pyCount=${pyWorkload}&rsCount=${rsWorkload}&betOn=${betOn}`;
     const es = new EventSource(url);
     eventSourceRef.current = es;
 
@@ -50,18 +62,14 @@ export default function RaceTrack() {
         setPyProgress((prev) => {
           if (prev >= 100) return prev;
           const next = data.progress || 0;
-          if (next >= 100) {
-            handleRaceEnd("python", es);
-          }
+          if (next >= 100) handleRaceEnd("python", es);
           return next;
         });
       } else if (data.runner === "rust") {
         setRsProgress((prev) => {
           if (prev >= 100) return prev;
           const next = data.progress || 0;
-          if (next >= 100) {
-            handleRaceEnd("rust", es);
-          }
+          if (next >= 100) handleRaceEnd("rust", es);
           return next;
         });
       } else if (data.event === "complete") {
@@ -78,17 +86,18 @@ export default function RaceTrack() {
 
   const handleRaceEnd = (winner: Runner, es: EventSource) => {
     setWinnerResult((prev) => {
-        if (prev) return prev; // Already have a winner
+        if (prev) return prev; 
         
         setIsRacing(false);
         es.close();
 
-        // Calculate final balance change
         const isWin = winner === betOn;
-        const change = isWin ? betAmount : -betAmount;
+        const multiplier = winner === "python" ? parseFloat(pythonMultiplier) : parseFloat(rustMultiplier);
+        const winAmount = Math.floor(betAmount * multiplier);
+        const change = isWin ? winAmount : -betAmount;
         setBalance(b => b + change);
 
-        return { winner, betOn: betOn!, amount: betAmount };
+        return { winner, betOn: betOn!, amount: isWin ? winAmount : betAmount };
     });
   };
 
@@ -104,8 +113,8 @@ export default function RaceTrack() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans selection:bg-blue-500/30">
-      <div className="max-w-5xl mx-auto space-y-6 md:space-y-8">
-        {/* Header & Balance */}
+      <div className="max-w-6xl mx-auto space-y-6 md:space-y-8">
+        {/* Header */}
         <header className="flex flex-col md:flex-row justify-between items-center bg-slate-900/50 backdrop-blur-md p-6 rounded-3xl border border-slate-800 shadow-2xl gap-4">
           <div className="text-center md:text-left">
             <h1 className="text-4xl font-black tracking-tighter bg-gradient-to-br from-blue-400 via-purple-400 to-pink-500 bg-clip-text text-transparent italic leading-tight">
@@ -129,93 +138,132 @@ export default function RaceTrack() {
 
         {/* Control Panel */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6">
-          {/* Bet Picker */}
-          <div className="bg-slate-900/40 p-6 rounded-3xl border border-slate-800 space-y-5">
+          {/* Bet Picker & Odds */}
+          <div className="bg-slate-900/40 p-6 rounded-3xl border border-slate-800 space-y-5 lg:col-span-1">
             <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-500" /> Choose Champion
             </h2>
-            <div className="grid grid-cols-2 gap-3">
-              {(["python", "rust"] as Runner[]).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setBetOn(r)}
-                  disabled={isRacing}
-                  className={`relative overflow-hidden group py-4 rounded-2xl font-black transition-all active:scale-95 ${
-                    betOn === r
-                      ? "bg-slate-100 text-slate-950 shadow-lg scale-105 z-10"
-                      : "bg-slate-800/50 text-slate-500 hover:text-slate-300 hover:bg-slate-800"
-                  }`}
-                >
-                  <span className="relative z-10">{r === "python" ? "🐍 Python" : "🦀 Rust"}</span>
-                </button>
-              ))}
+            <div className="space-y-3">
+              <button
+                onClick={() => setBetOn("python")}
+                disabled={isRacing}
+                className={`w-full py-4 rounded-2xl font-black transition-all flex flex-col items-center gap-1 ${
+                  betOn === "python"
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40 scale-[1.03] z-10"
+                    : "bg-slate-800/50 text-slate-500 hover:text-slate-300 hover:bg-slate-800"
+                }`}
+              >
+                <span>🐍 Python</span>
+                <span className={`text-[10px] font-mono font-bold ${betOn === "python" ? "text-blue-200" : "text-slate-600"}`}>
+                   Payout: {pythonMultiplier}x
+                </span>
+              </button>
+              <button
+                onClick={() => setBetOn("rust")}
+                disabled={isRacing}
+                className={`w-full py-4 rounded-2xl font-black transition-all flex flex-col items-center gap-1 ${
+                  betOn === "rust"
+                    ? "bg-orange-600 text-white shadow-lg shadow-orange-900/40 scale-[1.03] z-10"
+                    : "bg-slate-800/50 text-slate-500 hover:text-slate-300 hover:bg-slate-800"
+                }`}
+              >
+                <span>🦀 Rust</span>
+                <span className={`text-[10px] font-mono font-bold ${betOn === "rust" ? "text-orange-200" : "text-slate-600"}`}>
+                   Payout: {rustMultiplier}x
+                </span>
+              </button>
             </div>
           </div>
 
-          {/* Amount & Op */}
-          <div className="bg-slate-900/40 p-6 rounded-3xl border border-slate-800 space-y-5 lg:col-span-2">
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Operation</h2>
-                <select 
-                  value={operation} 
-                  onChange={(e) => setOperation(e.target.value)}
-                  disabled={isRacing}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 ring-blue-500/50 appearance-none cursor-pointer hover:border-slate-700 transition-colors text-slate-100"
-                >
-                  <option value="1">Addition (+)</option>
-                  <option value="2">Subtraction (-)</option>
-                  <option value="3">Multiplication (*)</option>
-                  <option value="4">Division (/)</option>
-                </select>
-              </div>
-              <div className="space-y-4">
-                <h2 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Bet Amount</h2>
-                <div className="flex gap-2">
-                  {[100, 500].map(amt => (
-                    <button
-                      key={amt}
-                      onClick={() => setBetAmount(amt)}
-                      disabled={isRacing}
-                      className={`flex-1 py-3 rounded-xl text-xs font-black transition-all ${
-                        betAmount === amt ? "bg-slate-100 text-slate-950" : "bg-slate-800/50 text-slate-500 hover:bg-slate-800"
-                      }`}
-                    >
-                      ${amt}
-                    </button>
-                  ))}
+          {/* Workload Gauges */}
+          <div className="bg-slate-900/40 p-6 rounded-3xl border border-slate-800 space-y-6 lg:col-span-2">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4 pt-2">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2">
+                      🐍 Python Workload
+                    </h2>
+                    <span className="text-[10px] font-mono font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded">
+                      {pyWorkload.toLocaleString()}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1000"
+                    max="100000"
+                    step="1000"
+                    value={pyWorkload}
+                    onChange={(e) => setPyWorkload(parseInt(e.target.value))}
+                    disabled={isRacing}
+                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500 transition-all hover:accent-blue-400"
+                  />
                 </div>
-              </div>
-            </div>
+                <div className="space-y-4 pt-2">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2">
+                      🦀 Rust Workload
+                    </h2>
+                    <span className="text-[10px] font-mono font-bold text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded">
+                      {rsWorkload.toLocaleString()}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1000"
+                    max="1000000"
+                    step="5000"
+                    value={rsWorkload}
+                    onChange={(e) => setRsWorkload(parseInt(e.target.value))}
+                    disabled={isRacing}
+                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-orange-500 transition-all hover:accent-orange-400"
+                  />
+                </div>
+             </div>
 
-            <div className="space-y-4 pt-2">
-              <div className="flex justify-between items-center">
-                <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2">
-                  <Zap className="w-3 h-3 text-yellow-500" /> Hardware Handicap
-                </h2>
-                <span className="text-[10px] font-mono font-bold text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded">
-                  Rust processing {handicap.toLocaleString()} numbers
-                </span>
-              </div>
-              <input
-                type="range"
-                min="1000"
-                max="500000"
-                step="5000"
-                value={handicap}
-                onChange={(e) => setHandicap(parseInt(e.target.value))}
-                disabled={isRacing}
-                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-orange-500 transition-all hover:accent-orange-400"
-              />
-            </div>
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-3">
+                  <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Operation</h2>
+                  <select 
+                    value={operation} 
+                    onChange={(e) => setOperation(e.target.value)}
+                    disabled={isRacing}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-xs font-bold focus:outline-none focus:ring-2 ring-blue-500/50 appearance-none cursor-pointer hover:border-slate-700 transition-colors text-slate-100"
+                  >
+                    <option value="1">Addition (+)</option>
+                    <option value="2">Subtraction (-)</option>
+                    <option value="3">Multiplication (*)</option>
+                    <option value="4">Division (/)</option>
+                  </select>
+                </div>
+                <div className="space-y-3">
+                  <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Amount</h2>
+                  <div className="flex gap-2">
+                    {[100, 500].map(amt => (
+                      <button
+                        key={amt}
+                        onClick={() => setBetAmount(amt)}
+                        disabled={isRacing}
+                        className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${
+                          betAmount === amt ? "bg-slate-100 text-slate-950" : "bg-slate-800/50 text-slate-500 hover:bg-slate-800"
+                        }`}
+                      >
+                        ${amt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+             </div>
           </div>
 
           {/* Action Button */}
           <div className="flex flex-col justify-center">
+            <div className="text-center mb-2 flex items-center justify-center gap-1 text-slate-500 text-[10px] font-bold uppercase tracking-widest">
+                <Info className="w-3 h-3" /> Potential: ${winnerResult ? "0" : Math.floor(betAmount * (betOn === "python" ? parseFloat(pythonMultiplier) : parseFloat(rustMultiplier)))}
+            </div>
             <button
               onClick={isRacing ? resetRace : startRace}
               disabled={!betOn || (balance < betAmount && !isRacing)}
-              className={`group relative overflow-hidden w-full h-full min-h-[80px] rounded-3xl font-black text-2xl flex items-center justify-center gap-4 transition-all active:scale-95 shadow-2xl disabled:opacity-50 disabled:grayscale ${
+              className={`group relative overflow-hidden w-full h-full min-h-[100px] rounded-3xl font-black text-2xl flex items-center justify-center gap-4 transition-all active:scale-95 shadow-2xl disabled:opacity-50 disabled:grayscale ${
                 isRacing
                   ? "bg-red-500/10 text-red-500 border-2 border-red-500/30 hover:bg-red-500/20"
                   : "bg-gradient-to-br from-emerald-500 to-teal-600 text-white hover:shadow-emerald-500/20 hover:scale-[1.02]"
@@ -223,15 +271,14 @@ export default function RaceTrack() {
             >
               <div className="relative z-10 flex items-center gap-3">
                 {isRacing ? <RotateCcw className="w-8 h-8" /> : <Play className="w-8 h-8 fill-current translate-x-1" />}
-                <span className="tracking-tighter">{isRacing ? "ABORT" : "START RACE"}</span>
+                <span className="tracking-tighter">{isRacing ? "ABORT" : "FIGHT!"}</span>
               </div>
             </button>
           </div>
         </div>
 
-        {/* The Arena */}
+        {/* Arena */}
         <div className="bg-slate-900/60 p-6 md:p-12 rounded-[3rem] border border-slate-800/50 shadow-inner relative overflow-hidden">
-           {/* Finish Line Area */}
            <div className="absolute right-0 top-0 bottom-0 w-32 md:w-48 bg-gradient-to-l from-slate-800/20 to-transparent pointer-events-none" />
            <div className="absolute right-20 md:right-32 top-0 bottom-0 w-2 bg-white/5 border-x border-white/10 z-0" />
            
@@ -248,13 +295,11 @@ export default function RaceTrack() {
                   <span className="font-mono font-bold text-blue-400">{pyProgress.toFixed(1)}%</span>
                 </div>
                 <div className="h-4 bg-slate-950/50 rounded-full w-full relative border border-slate-800 shadow-inner overflow-visible">
-                  {/* Progress Glow */}
                   <motion.div 
                     className="absolute left-0 top-0 bottom-0 bg-blue-500/20 rounded-full"
                     animate={{ width: `${pyProgress}%` }}
                     transition={{ type: "spring", stiffness: 50, damping: 20 }}
                   />
-                  {/* Runner */}
                   <motion.div 
                     animate={{ left: `${pyProgress}%` }}
                     transition={{ type: "spring", stiffness: 50, damping: 20 }}
@@ -278,13 +323,11 @@ export default function RaceTrack() {
                   <span className="font-mono font-bold text-orange-400">{rsProgress.toFixed(1)}%</span>
                 </div>
                 <div className="h-4 bg-slate-950/50 rounded-full w-full relative border border-slate-800 shadow-inner overflow-visible">
-                   {/* Progress Glow */}
                    <motion.div 
                     className="absolute left-0 top-0 bottom-0 bg-orange-500/20 rounded-full"
                     animate={{ width: `${rsProgress}%` }}
                     transition={{ type: "spring", stiffness: 50, damping: 20 }}
                   />
-                  {/* Runner */}
                   <motion.div 
                     animate={{ left: `${rsProgress}%` }}
                     transition={{ type: "spring", stiffness: 50, damping: 20 }}
@@ -297,7 +340,6 @@ export default function RaceTrack() {
               </div>
            </div>
 
-           {/* Finish Line Text */}
            <div className="absolute right-6 top-1/2 -rotate-90 translate-y-[-50%] pointer-events-none">
               <span className="text-4xl md:text-6xl font-black text-slate-800/30 tracking-widest uppercase text-slate-400">Finish Line</span>
            </div>
@@ -333,13 +375,13 @@ export default function RaceTrack() {
                   }`}>
                     {winnerResult.winner}
                   </h2>
-                  <p className="text-slate-400 font-bold tracking-widest uppercase text-sm">Takes the Gold!</p>
+                  <p className="text-slate-400 font-bold tracking-widest uppercase text-sm">Winner Winner Chicken Dinner!</p>
                 </div>
 
                 <div className={`py-6 px-8 rounded-2xl ${
                   winnerResult.winner === winnerResult.betOn ? "bg-emerald-500/10 border border-emerald-500/30" : "bg-red-500/10 border border-red-500/30"
                 }`}>
-                  <p className="text-xs uppercase font-black text-slate-500 mb-2">Bet Settlement</p>
+                  <p className="text-xs uppercase font-black text-slate-500 mb-2">Net Returns</p>
                   <p className={`text-3xl font-black ${winnerResult.winner === winnerResult.betOn ? "text-emerald-400" : "text-red-400"}`}>
                     {winnerResult.winner === winnerResult.betOn ? `+ $${winnerResult.amount}` : `- $${winnerResult.amount}`}
                   </p>
@@ -349,7 +391,7 @@ export default function RaceTrack() {
                   onClick={resetRace}
                   className="w-full py-5 bg-slate-100 text-slate-950 rounded-2xl font-black text-lg hover:bg-white hover:scale-[1.02] transition-all shadow-xl active:scale-95"
                 >
-                  PLAY AGAIN
+                  NEXT ROUND
                 </button>
               </motion.div>
             </motion.div>
