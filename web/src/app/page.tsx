@@ -65,8 +65,8 @@ export default function RaceTrack() {
 
           // 2. Load Rust Wasm
           try {
-            // We use a dynamic import from the public folder
-            const wasm = await import("../../public/wasm/calculator.js");
+            // @ts-expect-error - Wasm files are generated at build time
+            const wasm = await import("../wasm/calculator.js");
             await wasm.default();
             rustWasmRef.current = wasm;
           } catch (e) {
